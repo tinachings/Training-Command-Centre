@@ -32,7 +32,7 @@ export default function Home() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           ['Active Pipeline Items', pipelineItems.length], ['Active Trainees', activeTrainees], ['Competent Processes', competentProcesses], ['Chase Items', pipelineItems.filter((item) => item.followUpFlag === 'CHASE').length],
-          ['Priority Items', pipelineItems.filter((item) => item.followUpFlag === 'PRIORITISE').length], ['Ready for Pre-Assessment', pipelineItems.filter((item) => item.stage === 'Ready for Pre-Assessment').length], ['Ready for Assessment', pipelineItems.filter((item) => item.stage === 'Ready for Assessment').length], ['Refreshers Overdue', refresherItems.filter((item) => item.status === 'Overdue').length],
+          ['Priority Items', pipelineItems.filter((item) => item.followUpFlag === 'PRIORITISE').length], ['Ready for Pre-Assessment', pipelineItems.filter((item) => item.stage === 'Ready for Pre-Assessment').length], ['Ready for Assessment', pipelineItems.filter((item) => item.stage === 'Ready for Assessment').length], ['Refreshers Overdue', refreshers.filter((item) => item.status === 'Overdue').length],
         ].map(([label, value]) => (
           <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">{label}</p>
