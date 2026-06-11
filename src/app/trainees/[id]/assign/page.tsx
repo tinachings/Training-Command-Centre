@@ -42,7 +42,7 @@ export default function AssignProcessPage() {
       lastCheckInDate: '2026-06-10',
       readinessScore: 55,
       assessmentOutcome: 'In Progress',
-      competencySignOffDate: null,
+      competencySignOffDate: undefined,
       requestedBy: form.requestedBy,
       riskAssessmentComplete: form.riskAssessmentComplete,
       sopComplete: form.sopComplete,
