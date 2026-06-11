@@ -1,0 +1,1 @@
+export default function FridayReviewPage() { return <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-2xl font-semibold">Friday Review</h2><p className="mt-3 text-slate-600">This review view compares planned versus completed activity, deferred work, carry-over items, and follow-up requirements.</p></div>; }

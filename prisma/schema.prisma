@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Department {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  processes Process[]
+  trainees  Trainee[]
+  createdAt DateTime   @default(now())
+}
+
+model Process {
+  id                 Int              @id @default(autoincrement())
+  name               String
+  departmentId       Int
+  department         Department       @relation(fields: [departmentId], references: [id])
+  traineeProcesses   TraineeProcess[]
+  createdAt          DateTime         @default(now())
+
+  @@index([departmentId, name])
+}
+
+model Trainee {
+  id               Int              @id @default(autoincrement())
+  name             String
+  departmentId     Int
+  department       Department       @relation(fields: [departmentId], references: [id])
+  teamLeader       String?
+  trainingAssessor String?
+  shift            String?
+  startDate        DateTime?
+  archived         Boolean          @default(false)
+  traineeProcesses TraineeProcess[]
+  createdAt        DateTime         @default(now())
+
+  @@index([departmentId, name])
+}
+
+model TrainingAssessor {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+}
+
+model TeamLeader {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+}
+
+model TrainingBuddy {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+}
+
+model TraineeProcess {
+  id                       Int               @id @default(autoincrement())
+  traineeId                Int
+  processId                Int
+  trainee                  Trainee           @relation(fields: [traineeId], references: [id])
+  process                  Process           @relation(fields: [processId], references: [id])
+  stage                    String            @default("Requested")
+  status                   String            @default("Active")
+  department               String
+  trainingBuddy            String?
+  trainingStartDate        DateTime?
+  lastCheckInDate          DateTime?
+  buddyFeedbackScore       Int?
+  assessorObservationScore Int?
+  timeSpentInShifts        Int?
+  readinessScore           Int?
+  readyForPreAssessment    Boolean           @default(false)
+  preAssessmentDate        DateTime?
+  preAssessmentOutcome     String?
+  assessmentDate           DateTime?
+  assessmentOutcome        String?
+  competencySignOffDate    DateTime?
+  nextAction               String?
+  followUpFlag             String?
+  createdAt                DateTime          @default(now())
+  assessmentRecords        AssessmentRecord[]
+  weeklyPlannerItems       WeeklyPlannerItem[]
+  followUpActions          FollowUpAction[]
+  refresherRecord          RefresherRecord?
+
+  @@index([stage])
+  @@index([assessmentOutcome])
+  @@index([department])
+}
+
+model WeeklyPlannerItem {
+  id               Int             @id @default(autoincrement())
+  weekCommencing   DateTime
+  plannedDate      DateTime
+  department       String
+  traineeName      String
+  process          String
+  activityType     String
+  owner            String?
+  status           String
+  actualDate       DateTime?
+  deviationReason  String?
+  followUpRequired Boolean         @default(false)
+  followUpDate     DateTime?
+  traineeProcessId Int?
+  traineeProcess   TraineeProcess? @relation(fields: [traineeProcessId], references: [id])
+  createdAt        DateTime        @default(now())
+
+  @@index([plannedDate])
+  @@index([followUpDate])
+  @@index([department])
+}
+
+model AssessmentRecord {
+  id                  Int             @id @default(autoincrement())
+  traineeProcessId    Int
+  traineeProcess      TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
+  assessmentType      String
+  date                DateTime
+  department          String
+  traineeName         String
+  process             String
+  assessor            String
+  outcome             String
+  strengths           String?
+  developmentAreas    String?
+  developmentActions  String?
+  finalOutcome        String?
+  followUpRequired    Boolean         @default(false)
+  followUpDate        DateTime?
+  createdAt           DateTime        @default(now())
+
+  @@index([department, date])
+  @@index([traineeName])
+}
+
+model RefresherRecord {
+  id                 Int             @id @default(autoincrement())
+  traineeProcessId   Int             @unique
+  traineeProcess     TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
+  department         String
+  traineeName        String
+  process            String
+  lastCompetencyDate DateTime?
+  refresherDueDate   DateTime?
+  status             String
+  daysUntilDue       Int?
+  assignedAssessor   String?
+  completedDate      DateTime?
+  outcome            String?
+  createdAt          DateTime        @default(now())
+
+  @@index([refresherDueDate])
+}
+
+model FollowUpAction {
+  id               Int             @id @default(autoincrement())
+  traineeProcessId Int
+  traineeProcess   TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
+  title            String
+  dueDate          DateTime?
+  status           String          @default("Open")
+  createdAt        DateTime        @default(now())
+
+  @@index([dueDate])
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+}
