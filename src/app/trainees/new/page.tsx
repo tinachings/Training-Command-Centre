@@ -16,16 +16,24 @@ export default function NewTraineePage() {
     startDate: '2026-06-01',
   });
 
-  const submit = () => {
-    const trainee = {
-      id: Date.now(),
-      ...form,
-      archived: false,
-    };
+const submit = async () => {
+  const response = await fetch('/api/trainees', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(form),
+  });
 
-    addTrainee(trainee);
-    router.push(`/trainees/${trainee.id}`);
-  };
+  if (!response.ok) {
+    alert('Failed to save trainee');
+    return;
+  }
+
+  const trainee = await response.json();
+
+  router.push(`/trainees/${trainee.id}`);
+};
 
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

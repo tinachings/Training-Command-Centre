@@ -1,104 +1,116 @@
 -- CreateTable
 CREATE TABLE "Department" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Department_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Process" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "departmentId" INTEGER NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Process_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Process_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Trainee" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "departmentId" INTEGER NOT NULL,
     "teamLeader" TEXT,
     "trainingAssessor" TEXT,
     "shift" TEXT,
-    "startDate" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Trainee_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "startDate" TIMESTAMP(3),
+    "archived" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Trainee_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "TrainingAssessor" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "TrainingAssessor_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "TeamLeader" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "TeamLeader_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "TrainingBuddy" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "TrainingBuddy_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "TraineeProcess" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "traineeId" INTEGER NOT NULL,
     "processId" INTEGER NOT NULL,
     "stage" TEXT NOT NULL DEFAULT 'Requested',
     "status" TEXT NOT NULL DEFAULT 'Active',
     "department" TEXT NOT NULL,
     "trainingBuddy" TEXT,
-    "trainingStartDate" DATETIME,
-    "lastCheckInDate" DATETIME,
+    "trainingStartDate" TIMESTAMP(3),
+    "lastCheckInDate" TIMESTAMP(3),
     "buddyFeedbackScore" INTEGER,
     "assessorObservationScore" INTEGER,
     "timeSpentInShifts" INTEGER,
     "readinessScore" INTEGER,
     "readyForPreAssessment" BOOLEAN NOT NULL DEFAULT false,
-    "preAssessmentDate" DATETIME,
+    "preAssessmentDate" TIMESTAMP(3),
     "preAssessmentOutcome" TEXT,
-    "assessmentDate" DATETIME,
+    "assessmentDate" TIMESTAMP(3),
     "assessmentOutcome" TEXT,
-    "competencySignOffDate" DATETIME,
+    "competencySignOffDate" TIMESTAMP(3),
     "nextAction" TEXT,
     "followUpFlag" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "TraineeProcess_traineeId_fkey" FOREIGN KEY ("traineeId") REFERENCES "Trainee" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "TraineeProcess_processId_fkey" FOREIGN KEY ("processId") REFERENCES "Process" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TraineeProcess_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "WeeklyPlannerItem" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "weekCommencing" DATETIME NOT NULL,
-    "plannedDate" DATETIME NOT NULL,
+    "id" SERIAL NOT NULL,
+    "weekCommencing" TIMESTAMP(3) NOT NULL,
+    "plannedDate" TIMESTAMP(3) NOT NULL,
     "department" TEXT NOT NULL,
     "traineeName" TEXT NOT NULL,
     "process" TEXT NOT NULL,
     "activityType" TEXT NOT NULL,
     "owner" TEXT,
     "status" TEXT NOT NULL,
-    "actualDate" DATETIME,
+    "actualDate" TIMESTAMP(3),
     "deviationReason" TEXT,
     "followUpRequired" BOOLEAN NOT NULL DEFAULT false,
-    "followUpDate" DATETIME,
+    "followUpDate" TIMESTAMP(3),
     "traineeProcessId" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "WeeklyPlannerItem_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WeeklyPlannerItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "AssessmentRecord" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "traineeProcessId" INTEGER NOT NULL,
     "assessmentType" TEXT NOT NULL,
-    "date" DATETIME NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
     "department" TEXT NOT NULL,
     "traineeName" TEXT NOT NULL,
     "process" TEXT NOT NULL,
@@ -109,46 +121,51 @@ CREATE TABLE "AssessmentRecord" (
     "developmentActions" TEXT,
     "finalOutcome" TEXT,
     "followUpRequired" BOOLEAN NOT NULL DEFAULT false,
-    "followUpDate" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "AssessmentRecord_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "followUpDate" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AssessmentRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "RefresherRecord" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "traineeProcessId" INTEGER NOT NULL,
     "department" TEXT NOT NULL,
     "traineeName" TEXT NOT NULL,
     "process" TEXT NOT NULL,
-    "lastCompetencyDate" DATETIME,
-    "refresherDueDate" DATETIME,
+    "lastCompetencyDate" TIMESTAMP(3),
+    "refresherDueDate" TIMESTAMP(3),
     "status" TEXT NOT NULL,
     "daysUntilDue" INTEGER,
     "assignedAssessor" TEXT,
-    "completedDate" DATETIME,
+    "completedDate" TIMESTAMP(3),
     "outcome" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "RefresherRecord_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RefresherRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "FollowUpAction" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "traineeProcessId" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
-    "dueDate" DATETIME,
+    "dueDate" TIMESTAMP(3),
     "status" TEXT NOT NULL DEFAULT 'Open',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "FollowUpAction_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "FollowUpAction_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Setting" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Setting_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -204,3 +221,27 @@ CREATE INDEX "FollowUpAction_dueDate_idx" ON "FollowUpAction"("dueDate");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Setting_key_key" ON "Setting"("key");
+
+-- AddForeignKey
+ALTER TABLE "Process" ADD CONSTRAINT "Process_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Trainee" ADD CONSTRAINT "Trainee_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TraineeProcess" ADD CONSTRAINT "TraineeProcess_traineeId_fkey" FOREIGN KEY ("traineeId") REFERENCES "Trainee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TraineeProcess" ADD CONSTRAINT "TraineeProcess_processId_fkey" FOREIGN KEY ("processId") REFERENCES "Process"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WeeklyPlannerItem" ADD CONSTRAINT "WeeklyPlannerItem_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AssessmentRecord" ADD CONSTRAINT "AssessmentRecord_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RefresherRecord" ADD CONSTRAINT "RefresherRecord_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "FollowUpAction" ADD CONSTRAINT "FollowUpAction_traineeProcessId_fkey" FOREIGN KEY ("traineeProcessId") REFERENCES "TraineeProcess"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
