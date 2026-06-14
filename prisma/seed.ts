@@ -33,10 +33,10 @@ async function main() {
   }
 
   const trainees = [
-    { name: 'Daniel', departmentId: surfacing.id, teamLeader: 'M. Patel', trainingAssessor: 'J. Evans', shift: 'Days', startDate: new Date('2026-01-10') },
-    { name: 'Feyi', departmentId: surfacing.id, teamLeader: 'M. Patel', trainingAssessor: 'J. Evans', shift: 'Nights', startDate: new Date('2026-02-02') },
-    { name: 'Louie', departmentId: coating.id, teamLeader: 'S. Morris', trainingAssessor: 'A. Green', shift: 'Days', startDate: new Date('2026-01-18') },
-    { name: 'Grzegorz', departmentId: coating.id, teamLeader: 'S. Morris', trainingAssessor: 'A. Green', shift: 'Nights', startDate: new Date('2026-02-10') },
+    { name: 'Daniel', departmentId: surfacing.id, teamLeader: 'M. Patel', shiftLeader: 'R. Jones', trainingAssessor: 'J. Evans', shift: 'Days', startDate: new Date('2026-01-10') },
+    { name: 'Feyi', departmentId: surfacing.id, teamLeader: 'M. Patel', shiftLeader: 'K. Brown', trainingAssessor: 'J. Evans', shift: 'Nights', startDate: new Date('2026-02-02') },
+    { name: 'Louie', departmentId: coating.id, teamLeader: 'S. Morris', shiftLeader: 'R. Jones', trainingAssessor: 'A. Green', shift: 'Days', startDate: new Date('2026-01-18') },
+    { name: 'Grzegorz', departmentId: coating.id, teamLeader: 'S. Morris', shiftLeader: 'K. Brown', trainingAssessor: 'A. Green', shift: 'Nights', startDate: new Date('2026-02-10') },
   ];
 
   for (const trainee of trainees) {

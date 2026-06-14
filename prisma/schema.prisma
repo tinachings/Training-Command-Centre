@@ -7,22 +7,22 @@ datasource db {
 }
 
 model Department {
-  id        Int        @id @default(autoincrement())
-  name      String     @unique
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
   processes Process[]
   trainees  Trainee[]
-  createdAt DateTime   @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Process {
-  id                 Int              @id @default(autoincrement())
-  name               String
-  departmentId       Int
-  department         Department       @relation(fields: [departmentId], references: [id])
-  traineeProcesses   TraineeProcess[]
-  createdAt          DateTime         @default(now())
+  id               Int              @id @default(autoincrement())
+  name             String
+  departmentId     Int
+  department       Department       @relation(fields: [departmentId], references: [id])
+  traineeProcesses TraineeProcess[]
+  createdAt        DateTime         @default(now())
 
-  @@index([departmentId, name])
+  @@unique([departmentId, name])
 }
 
 model Trainee {
@@ -31,13 +31,17 @@ model Trainee {
   departmentId     Int
   department       Department       @relation(fields: [departmentId], references: [id])
   teamLeader       String?
+  shiftLeader      String?
   trainingAssessor String?
   shift            String?
   startDate        DateTime?
   archived         Boolean          @default(false)
   traineeProcesses TraineeProcess[]
+  timelineEvents   TimelineEvent[]
+  processCheckIns  ProcessCheckIn[]
   createdAt        DateTime         @default(now())
 
+  @@unique([name, departmentId, shift])
   @@index([departmentId, name])
 }
 
@@ -57,13 +61,13 @@ model TrainingBuddy {
 }
 
 model TraineeProcess {
-  id                       Int               @id @default(autoincrement())
+  id                       Int                 @id @default(autoincrement())
   traineeId                Int
   processId                Int
-  trainee                  Trainee           @relation(fields: [traineeId], references: [id])
-  process                  Process           @relation(fields: [processId], references: [id])
-  stage                    String            @default("Requested")
-  status                   String            @default("Active")
+  trainee                  Trainee             @relation(fields: [traineeId], references: [id])
+  process                  Process             @relation(fields: [processId], references: [id])
+  stage                    String              @default("Requested")
+  status                   String              @default("Active")
   department               String
   trainingBuddy            String?
   trainingStartDate        DateTime?
@@ -72,7 +76,7 @@ model TraineeProcess {
   assessorObservationScore Int?
   timeSpentInShifts        Int?
   readinessScore           Int?
-  readyForPreAssessment    Boolean           @default(false)
+  readyForPreAssessment    Boolean             @default(false)
   preAssessmentDate        DateTime?
   preAssessmentOutcome     String?
   assessmentDate           DateTime?
@@ -80,15 +84,56 @@ model TraineeProcess {
   competencySignOffDate    DateTime?
   nextAction               String?
   followUpFlag             String?
-  createdAt                DateTime          @default(now())
+  requestedBy              String?
+  riskAssessmentComplete   Boolean             @default(false)
+  sopComplete              Boolean             @default(false)
+  createdAt                DateTime            @default(now())
   assessmentRecords        AssessmentRecord[]
   weeklyPlannerItems       WeeklyPlannerItem[]
   followUpActions          FollowUpAction[]
   refresherRecord          RefresherRecord?
+  timelineEvents           TimelineEvent[]
+  checkIns                 ProcessCheckIn[]
 
   @@index([stage])
   @@index([assessmentOutcome])
   @@index([department])
+}
+
+model TimelineEvent {
+  id               Int             @id @default(autoincrement())
+  traineeId        Int
+  traineeProcessId Int?
+  trainee          Trainee         @relation(fields: [traineeId], references: [id])
+  traineeProcess   TraineeProcess? @relation(fields: [traineeProcessId], references: [id])
+  process          String?
+  eventType        String
+  date             DateTime        @default(now())
+  description      String
+  user             String
+  createdAt        DateTime        @default(now())
+
+  @@index([traineeId, date])
+  @@index([traineeProcessId, date])
+}
+
+model ProcessCheckIn {
+  id               Int            @id @default(autoincrement())
+  traineeId        Int
+  traineeProcessId Int
+  trainee          Trainee        @relation(fields: [traineeId], references: [id])
+  traineeProcess   TraineeProcess @relation(fields: [traineeProcessId], references: [id])
+  checkInDate      DateTime
+  assessor         String
+  progressSummary  String
+  issuesIdentified String?
+  supportRequired  String?
+  nextAction       String?
+  reviewDate       DateTime?
+  createdAt        DateTime       @default(now())
+
+  @@index([traineeId, checkInDate])
+  @@index([traineeProcessId, checkInDate])
 }
 
 model WeeklyPlannerItem {
@@ -115,32 +160,32 @@ model WeeklyPlannerItem {
 }
 
 model AssessmentRecord {
-  id                  Int             @id @default(autoincrement())
-  traineeProcessId    Int
-  traineeProcess      TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
-  assessmentType      String
-  date                DateTime
-  department          String
-  traineeName         String
-  process             String
-  assessor            String
-  outcome             String
-  strengths           String?
-  developmentAreas    String?
-  developmentActions  String?
-  finalOutcome        String?
-  followUpRequired    Boolean         @default(false)
-  followUpDate        DateTime?
-  createdAt           DateTime        @default(now())
+  id                 Int            @id @default(autoincrement())
+  traineeProcessId   Int
+  traineeProcess     TraineeProcess @relation(fields: [traineeProcessId], references: [id])
+  assessmentType     String
+  date               DateTime
+  department         String
+  traineeName        String
+  process            String
+  assessor           String
+  outcome            String
+  strengths          String?
+  developmentAreas   String?
+  developmentActions String?
+  finalOutcome       String?
+  followUpRequired   Boolean        @default(false)
+  followUpDate       DateTime?
+  createdAt          DateTime       @default(now())
 
   @@index([department, date])
   @@index([traineeName])
 }
 
 model RefresherRecord {
-  id                 Int             @id @default(autoincrement())
-  traineeProcessId   Int             @unique
-  traineeProcess     TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
+  id                 Int            @id @default(autoincrement())
+  traineeProcessId   Int            @unique
+  traineeProcess     TraineeProcess @relation(fields: [traineeProcessId], references: [id])
   department         String
   traineeName        String
   process            String
@@ -151,19 +196,19 @@ model RefresherRecord {
   assignedAssessor   String?
   completedDate      DateTime?
   outcome            String?
-  createdAt          DateTime        @default(now())
+  createdAt          DateTime       @default(now())
 
   @@index([refresherDueDate])
 }
 
 model FollowUpAction {
-  id               Int             @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   traineeProcessId Int
-  traineeProcess   TraineeProcess  @relation(fields: [traineeProcessId], references: [id])
+  traineeProcess   TraineeProcess @relation(fields: [traineeProcessId], references: [id])
   title            String
   dueDate          DateTime?
-  status           String          @default("Open")
-  createdAt        DateTime        @default(now())
+  status           String         @default("Open")
+  createdAt        DateTime       @default(now())
 
   @@index([dueDate])
 }
