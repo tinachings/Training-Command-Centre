@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 const validAssessmentTypes = ['Pre-Assessment', 'Assessment'];
@@ -9,8 +10,44 @@ const validOutcomes = [
   'Not Yet Competent',
 ];
 
+const assessmentGeneratorTraineeSelect = {
+  id: true,
+  name: true,
+  teamLeader: true,
+  trainingAssessor: true,
+  department: {
+    select: {
+      name: true,
+    },
+  },
+  traineeProcesses: {
+    where: {
+      status: {
+        not: 'Archived',
+      },
+    },
+    select: {
+      id: true,
+      process: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  },
+} satisfies Prisma.TraineeSelect;
+
+type AssessmentGeneratorTrainee = Prisma.TraineeGetPayload<{
+  select: typeof assessmentGeneratorTraineeSelect;
+}>;
+
 export async function GET() {
-  const [trainees, recordCount] = await prisma.$transaction([
+  const [trainees, recordCount]: [AssessmentGeneratorTrainee[], number] =
+    await prisma.$transaction([
     prisma.trainee.findMany({
       where: {
         archived: false,
@@ -22,36 +59,7 @@ export async function GET() {
           },
         },
       },
-      select: {
-        id: true,
-        name: true,
-        teamLeader: true,
-        trainingAssessor: true,
-        department: {
-          select: {
-            name: true,
-          },
-        },
-        traineeProcesses: {
-          where: {
-            status: {
-              not: 'Archived',
-            },
-          },
-          select: {
-            id: true,
-            process: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-      },
+      select: assessmentGeneratorTraineeSelect,
       orderBy: {
         name: 'asc',
       },
