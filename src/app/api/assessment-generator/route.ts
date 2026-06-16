@@ -57,6 +57,11 @@ type AssessmentGeneratorTrainee = {
   }>;
 };
 
+type PrismaTransactionClient = Omit<
+  typeof prisma,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 export async function GET() {
   const [trainees, recordCount]: [AssessmentGeneratorTrainee[], number] =
     await prisma.$transaction([
@@ -183,7 +188,7 @@ export async function POST(request: Request) {
   const followUpRequired =
     outcome === 'Development Required' || outcome === 'Not Yet Competent';
 
-  const result = await prisma.$transaction(async (transaction) => {
+  const result = await prisma.$transaction(async (transaction: PrismaTransactionClient) => {
     const assessmentRecord = await transaction.assessmentRecord.create({
       data: {
         traineeProcessId: assignment.id,
