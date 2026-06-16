@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 const validAssessmentTypes = ['Pre-Assessment', 'Assessment'];
@@ -39,11 +38,24 @@ const assessmentGeneratorTraineeSelect = {
       createdAt: 'desc',
     },
   },
-} satisfies Prisma.TraineeSelect;
+} as const;
 
-type AssessmentGeneratorTrainee = Prisma.TraineeGetPayload<{
-  select: typeof assessmentGeneratorTraineeSelect;
-}>;
+type AssessmentGeneratorTrainee = {
+  id: number;
+  name: string;
+  teamLeader: string | null;
+  trainingAssessor: string | null;
+  department: {
+    name: string;
+  };
+  traineeProcesses: Array<{
+    id: number;
+    process: {
+      id: number;
+      name: string;
+    };
+  }>;
+};
 
 export async function GET() {
   const [trainees, recordCount]: [AssessmentGeneratorTrainee[], number] =
