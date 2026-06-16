@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 const validAssessmentTypes = ['Pre-Assessment', 'Assessment'];
