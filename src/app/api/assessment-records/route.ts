@@ -1,8 +1,39 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+type AssessmentRecordQueryResult = {
+  id: number;
+  traineeProcessId: number;
+  assessmentType: string;
+  date: Date;
+  department: string;
+  traineeName: string;
+  process: string;
+  assessor: string;
+  outcome: string;
+  strengths: string | null;
+  developmentAreas: string | null;
+  developmentActions: string | null;
+  finalOutcome: string | null;
+  followUpRequired: boolean;
+  followUpDate: Date | null;
+  traineeProcess: {
+    traineeId: number;
+    trainee: {
+      name: string;
+      department: {
+        name: string;
+      };
+    };
+    process: {
+      name: string;
+    };
+  };
+};
+
 export async function GET() {
-  const records = await prisma.assessmentRecord.findMany({
+  const records: AssessmentRecordQueryResult[] =
+    await prisma.assessmentRecord.findMany({
     where: {
       traineeProcess: {
         status: {
