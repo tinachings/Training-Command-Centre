@@ -3,6 +3,46 @@ import { prisma } from '@/lib/prisma';
 
 const completedStatuses = ['Completed', 'Closed'];
 
+type DashboardAssignment = {
+  id: number;
+  traineeId: number;
+  stage: string;
+  status: string;
+  readinessScore: number | null;
+  nextAction: string | null;
+  followUpFlag: string | null;
+  trainee: {
+    name: string;
+    department: {
+      name: string;
+    };
+  };
+  process: {
+    name: string;
+  };
+  followUpActions: Array<{
+    id: number;
+  }>;
+};
+
+type DashboardDepartment = {
+  name: string;
+};
+
+type DashboardPlannerHighlight = {
+  id: number;
+  traineeName: string;
+  activityType: string;
+  status: string;
+};
+
+type DashboardRefresher = {
+  id: number;
+  traineeName: string;
+  refresherDueDate: Date | null;
+  status: string;
+};
+
 export async function GET() {
   const now = new Date();
   const [
@@ -11,6 +51,12 @@ export async function GET() {
     departmentNames,
     plannerHighlights,
     refreshers,
+  ]: [
+    number,
+    DashboardAssignment[],
+    DashboardDepartment[],
+    DashboardPlannerHighlight[],
+    DashboardRefresher[],
   ] = await prisma.$transaction([
     prisma.trainee.count({
       where: {
@@ -147,36 +193,37 @@ export async function GET() {
     }),
   ]);
 
-  const isCompetent = (assignment: (typeof assignments)[number]) =>
+  const isCompetent = (assignment: DashboardAssignment) =>
     assignment.status === 'Competent' ||
     assignment.status === 'Completed' ||
     assignment.stage === 'Competent';
-  const requiresFollowUp = (assignment: (typeof assignments)[number]) =>
+  const requiresFollowUp = (assignment: DashboardAssignment) =>
     (assignment.followUpFlag !== null &&
       assignment.followUpFlag !== 'NONE') ||
     assignment.followUpActions.length > 0;
   const readinessValues = assignments
-    .map((assignment) => assignment.readinessScore)
+    .map((assignment: DashboardAssignment) => assignment.readinessScore)
     .filter((value): value is number => value !== null);
 
-  const departmentSummary = departmentNames.map(({ name }) => {
+  const departmentSummary = departmentNames.map(({ name }: DashboardDepartment) => {
     const departmentAssignments = assignments.filter(
-      (assignment) => assignment.trainee.department.name === name,
+      (assignment: DashboardAssignment) =>
+        assignment.trainee.department.name === name,
     );
 
     return {
       name,
       active: departmentAssignments.filter(
-        (assignment) => !isCompetent(assignment),
+        (assignment: DashboardAssignment) => !isCompetent(assignment),
       ).length,
       competent: departmentAssignments.filter(isCompetent).length,
       chase: departmentAssignments.filter(
-        (assignment) =>
+        (assignment: DashboardAssignment) =>
           assignment.followUpFlag === 'CHASE' ||
           assignment.followUpActions.length > 0,
       ).length,
       ready: departmentAssignments.filter(
-        (assignment) =>
+        (assignment: DashboardAssignment) =>
           assignment.stage === 'Ready for Pre-Assessment' ||
           assignment.stage === 'Ready for Assessment',
       ).length,
@@ -187,7 +234,7 @@ export async function GET() {
     metrics: {
       activeTrainees,
       activeProcessAssignments: assignments.filter(
-        (assignment) => !isCompetent(assignment),
+        (assignment: DashboardAssignment) => !isCompetent(assignment),
       ).length,
       competentProcesses: assignments.filter(isCompetent).length,
       followUpRequired: assignments.filter(requiresFollowUp).length,
@@ -199,14 +246,16 @@ export async function GET() {
             )
           : 0,
       readyForPreAssessment: assignments.filter(
-        (assignment) => assignment.stage === 'Ready for Pre-Assessment',
+        (assignment: DashboardAssignment) =>
+          assignment.stage === 'Ready for Pre-Assessment',
       ).length,
       readyForAssessment: assignments.filter(
-        (assignment) => assignment.stage === 'Ready for Assessment',
+        (assignment: DashboardAssignment) =>
+          assignment.stage === 'Ready for Assessment',
       ).length,
       refreshersDue: refreshers.length,
       refreshersOverdue: refreshers.filter(
-        (refresher) =>
+        (refresher: DashboardRefresher) =>
           refresher.status === 'Overdue' ||
           (refresher.refresherDueDate !== null &&
             refresher.refresherDueDate < now),
@@ -215,7 +264,7 @@ export async function GET() {
     urgentPipeline: assignments
       .filter(requiresFollowUp)
       .slice(0, 5)
-      .map((assignment) => ({
+      .map((assignment: DashboardAssignment) => ({
         traineeProcessId: assignment.id,
         traineeId: assignment.traineeId,
         traineeName: assignment.trainee.name,
