@@ -9,6 +9,10 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+type ProcessNameResult = {
+  name: string;
+};
+
 function parseTraineeId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -38,7 +42,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Trainee not found.' }, { status: 404 });
   }
 
-  const databaseProcesses = await prisma.process.findMany({
+  const databaseProcesses: ProcessNameResult[] = await prisma.process.findMany({
     where: {
       departmentId: trainee.departmentId,
     },
@@ -50,11 +54,11 @@ export async function GET(_request: Request, context: RouteContext) {
   const names = Array.from(
     new Set([
       ...(processCatalog[trainee.department.name] ?? []),
-      ...databaseProcesses.map((process) => process.name),
+      ...databaseProcesses.map((process: ProcessNameResult) => process.name),
     ]),
-  ).sort((left, right) => left.localeCompare(right));
+  ).sort((left: string, right: string) => left.localeCompare(right));
 
-  return NextResponse.json(names.map((name) => ({ name })));
+  return NextResponse.json(names.map((name: string) => ({ name })));
 }
 
 export async function POST(request: Request, context: RouteContext) {

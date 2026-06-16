@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+type TrainingPipelineSummaryAssignment = {
+  stage: string;
+  status: string;
+  readinessScore: number | null;
+  followUpFlag: string | null;
+};
+
 export async function GET(request: Request) {
   const department = new URL(request.url).searchParams.get('department')?.trim();
 
@@ -11,7 +18,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const [traineeTotal, assignments] = await prisma.$transaction([
+  const [traineeTotal, assignments]: [
+    number,
+    TrainingPipelineSummaryAssignment[],
+  ] = await prisma.$transaction([
     prisma.trainee.count({
       where: {
         archived: false,
@@ -42,32 +52,35 @@ export async function GET(request: Request) {
   ]);
 
   const readinessValues = assignments
-    .map((assignment) => assignment.readinessScore)
-    .filter((value): value is number => value !== null);
+    .map((assignment: TrainingPipelineSummaryAssignment) => assignment.readinessScore)
+    .filter((value: number | null): value is number => value !== null);
 
   return NextResponse.json({
     department,
     traineeTotal,
     processTotal: assignments.length,
     activeProcesses: assignments.filter(
-      (assignment) =>
+      (assignment: TrainingPipelineSummaryAssignment) =>
         assignment.status !== 'Competent' &&
         assignment.stage !== 'Competent',
     ).length,
     competentProcesses: assignments.filter(
-      (assignment) =>
+      (assignment: TrainingPipelineSummaryAssignment) =>
         assignment.status === 'Competent' ||
         assignment.stage === 'Competent',
     ).length,
     averageReadiness:
       readinessValues.length > 0
         ? Math.round(
-            readinessValues.reduce((total, value) => total + value, 0) /
+            readinessValues.reduce(
+              (total: number, value: number) => total + value,
+              0,
+            ) /
               readinessValues.length,
           )
         : 0,
     followUpRequired: assignments.filter(
-      (assignment) =>
+      (assignment: TrainingPipelineSummaryAssignment) =>
         assignment.followUpFlag && assignment.followUpFlag !== 'NONE',
     ).length,
   });

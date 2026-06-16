@@ -3,6 +3,53 @@ import { prisma } from '@/lib/prisma';
 
 const completedStatuses = ['Completed', 'Closed'];
 
+type TeamLeaderDepartment = {
+  name: string;
+};
+
+type TeamLeaderFollowUpAction = {
+  id: number;
+  title: string;
+  dueDate: Date | null;
+  status: string;
+};
+
+type TeamLeaderTimelineEvent = {
+  id: number;
+  eventType: string;
+  description: string;
+  date: Date;
+  createdAt: Date;
+};
+
+type TeamLeaderAssignment = {
+  id: number;
+  traineeId: number;
+  stage: string;
+  status: string;
+  followUpFlag: string | null;
+  nextAction: string | null;
+  trainee: {
+    name: string;
+    department: {
+      name: string;
+    };
+  };
+  process: {
+    name: string;
+  };
+  followUpActions: TeamLeaderFollowUpAction[];
+  timelineEvents: TeamLeaderTimelineEvent[];
+};
+
+type TeamLeaderRefresher = {
+  id: number;
+  traineeName: string;
+  process: string;
+  status: string;
+  refresherDueDate: Date | null;
+};
+
 export async function GET(request: Request) {
   const department = new URL(request.url).searchParams.get('department')?.trim();
   const departmentFilter =
@@ -14,7 +61,11 @@ export async function GET(request: Request) {
         }
       : {};
 
-  const [departments, assignments, refreshers] = await prisma.$transaction([
+  const [departments, assignments, refreshers]: [
+    TeamLeaderDepartment[],
+    TeamLeaderAssignment[],
+    TeamLeaderRefresher[],
+  ] = await prisma.$transaction([
     prisma.department.findMany({
       where: {
         trainees: {
@@ -127,20 +178,20 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const isOpen = (assignment: (typeof assignments)[number]) =>
+  const isOpen = (assignment: TeamLeaderAssignment) =>
     assignment.status !== 'Competent' &&
     assignment.status !== 'Completed' &&
     assignment.stage !== 'Competent';
-  const requiresSupport = (assignment: (typeof assignments)[number]) =>
+  const requiresSupport = (assignment: TeamLeaderAssignment) =>
     assignment.stage === 'Retraining Required' ||
     (assignment.followUpFlag !== null &&
       assignment.followUpFlag !== 'NONE') ||
     assignment.followUpActions.length > 0;
-  const latestActivityTime = (assignment: (typeof assignments)[number]) => {
+  const latestActivityTime = (assignment: TeamLeaderAssignment) => {
     const event = assignment.timelineEvents[0];
     return event ? Math.max(event.date.getTime(), event.createdAt.getTime()) : 0;
   };
-  const mapAssignment = (assignment: (typeof assignments)[number]) => ({
+  const mapAssignment = (assignment: TeamLeaderAssignment) => ({
     traineeProcessId: assignment.id,
     traineeId: assignment.traineeId,
     traineeName: assignment.trainee.name,
@@ -156,28 +207,38 @@ export async function GET(request: Request) {
 
   const openAssignments = assignments.filter(isOpen);
   const readyForPreAssessment = assignments
-    .filter((assignment) => assignment.stage === 'Ready for Pre-Assessment')
+    .filter(
+      (assignment: TeamLeaderAssignment) =>
+        assignment.stage === 'Ready for Pre-Assessment',
+    )
     .map(mapAssignment);
   const readyForAssessment = assignments
-    .filter((assignment) => assignment.stage === 'Ready for Assessment')
+    .filter(
+      (assignment: TeamLeaderAssignment) =>
+        assignment.stage === 'Ready for Assessment',
+    )
     .map(mapAssignment);
   const retrainingRequired = assignments
-    .filter((assignment) => assignment.stage === 'Retraining Required')
+    .filter(
+      (assignment: TeamLeaderAssignment) =>
+        assignment.stage === 'Retraining Required',
+    )
     .map(mapAssignment);
   const supportItems = assignments
     .filter(requiresSupport)
     .sort(
-      (left, right) => latestActivityTime(right) - latestActivityTime(left),
+      (left: TeamLeaderAssignment, right: TeamLeaderAssignment) =>
+        latestActivityTime(right) - latestActivityTime(left),
     )
     .slice(0, 6)
     .map(mapAssignment);
 
   return NextResponse.json({
-    departments: departments.map((item) => item.name),
+    departments: departments.map((item: TeamLeaderDepartment) => item.name),
     summary: {
       openItems: openAssignments.length,
       chaseItems: assignments.filter(
-        (assignment) =>
+        (assignment: TeamLeaderAssignment) =>
           assignment.followUpFlag === 'CHASE' ||
           assignment.followUpActions.length > 0,
       ).length,

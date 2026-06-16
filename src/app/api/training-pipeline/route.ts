@@ -1,10 +1,32 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+type TrainingPipelineAssignment = {
+  id: number;
+  traineeId: number;
+  stage: string;
+  status: string;
+  readinessScore: number | null;
+  trainingBuddy: string | null;
+  trainingStartDate: Date | null;
+  nextAction: string | null;
+  followUpFlag: string | null;
+  trainee: {
+    name: string;
+    department: {
+      name: string;
+    };
+  };
+  process: {
+    name: string;
+  };
+};
+
 export async function GET(request: Request) {
   const department = new URL(request.url).searchParams.get('department')?.trim();
 
-  const assignments = await prisma.traineeProcess.findMany({
+  const assignments: TrainingPipelineAssignment[] =
+    await prisma.traineeProcess.findMany({
     where: {
       status: {
         not: 'Archived',
@@ -52,7 +74,7 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json(
-    assignments.map((assignment) => ({
+    assignments.map((assignment: TrainingPipelineAssignment) => ({
       traineeProcessId: assignment.id,
       traineeId: assignment.traineeId,
       traineeName: assignment.trainee.name,

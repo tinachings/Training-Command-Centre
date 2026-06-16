@@ -8,6 +8,11 @@ type RouteContext = {
   }>;
 };
 
+type PrismaTransactionClient = Omit<
+  typeof prisma,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 function parseId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -72,51 +77,53 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const result = await prisma.$transaction(async (transaction) => {
-    const checkIn = await transaction.processCheckIn.create({
-      data: {
-        traineeId,
-        traineeProcessId: assignment.id,
-        checkInDate,
-        assessor,
-        progressSummary,
-        issuesIdentified,
-        supportRequired,
-        nextAction,
-        reviewDate,
-      },
-    });
+  const result = await prisma.$transaction(
+    async (transaction: PrismaTransactionClient) => {
+      const checkIn = await transaction.processCheckIn.create({
+        data: {
+          traineeId,
+          traineeProcessId: assignment.id,
+          checkInDate,
+          assessor,
+          progressSummary,
+          issuesIdentified,
+          supportRequired,
+          nextAction,
+          reviewDate,
+        },
+      });
 
-    const timelineEvent = await transaction.timelineEvent.create({
-      data: {
-        traineeId,
-        traineeProcessId: assignment.id,
-        process: assignment.process.name,
-        eventType: 'Check-in added',
-        date: checkInDate,
-        description: `${assessor}: ${progressSummary}`,
-        user: assessor,
-      },
-    });
+      const timelineEvent = await transaction.timelineEvent.create({
+        data: {
+          traineeId,
+          traineeProcessId: assignment.id,
+          process: assignment.process.name,
+          eventType: 'Check-in added',
+          date: checkInDate,
+          description: `${assessor}: ${progressSummary}`,
+          user: assessor,
+        },
+      });
 
-    const updatedAssignment = await transaction.traineeProcess.update({
-      where: { id: assignment.id },
-      data: {
-        lastCheckInDate: checkInDate,
-        ...(nextAction ? { nextAction } : {}),
-        ...(issuesIdentified ? { followUpFlag: 'CHASE' } : {}),
-      },
-      include: {
-        process: true,
-      },
-    });
+      const updatedAssignment = await transaction.traineeProcess.update({
+        where: { id: assignment.id },
+        data: {
+          lastCheckInDate: checkInDate,
+          ...(nextAction ? { nextAction } : {}),
+          ...(issuesIdentified ? { followUpFlag: 'CHASE' } : {}),
+        },
+        include: {
+          process: true,
+        },
+      });
 
-    return {
-      assignment: updatedAssignment,
-      checkIn,
-      timelineEvent,
-    };
-  });
+      return {
+        assignment: updatedAssignment,
+        checkIn,
+        timelineEvent,
+      };
+    },
+  );
 
   return NextResponse.json(result, { status: 201 });
 }

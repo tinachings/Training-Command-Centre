@@ -92,7 +92,7 @@ export async function GET() {
   });
 
   return NextResponse.json(
-    records.map(({ traineeProcess, ...record }) => ({
+    records.map(({ traineeProcess, ...record }: AssessmentRecordQueryResult) => ({
       ...record,
       traineeId: traineeProcess.traineeId,
       traineeName: traineeProcess.trainee.name || record.traineeName,

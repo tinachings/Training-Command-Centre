@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+type SettingsDepartment = {
+  id: number;
+  name: string;
+};
+
+type SettingsProcess = {
+  department: {
+    name: string;
+  };
+};
+
+type SettingsTrainee = {
+  teamLeader: string | null;
+  trainingAssessor: string | null;
+  department: {
+    name: string;
+  };
+};
+
+type SettingsName = {
+  name: string;
+};
+
+type SettingsPair = {
+  key: string;
+  value: string;
+};
+
 export async function GET() {
   const [
     departments,
@@ -10,6 +38,14 @@ export async function GET() {
     trainingAssessors,
     trainingBuddies,
     settings,
+  ]: [
+    SettingsDepartment[],
+    SettingsProcess[],
+    SettingsTrainee[],
+    SettingsName[],
+    SettingsName[],
+    SettingsName[],
+    SettingsPair[],
   ] = await prisma.$transaction([
     prisma.department.findMany({
       select: {
@@ -95,38 +131,38 @@ export async function GET() {
   ]);
 
   const traineeTeamLeaders = trainees
-    .map((trainee) => trainee.teamLeader)
-    .filter((name): name is string => Boolean(name));
+    .map((trainee: SettingsTrainee) => trainee.teamLeader)
+    .filter((name: string | null): name is string => Boolean(name));
   const traineeAssessors = trainees
-    .map((trainee) => trainee.trainingAssessor)
-    .filter((name): name is string => Boolean(name));
+    .map((trainee: SettingsTrainee) => trainee.trainingAssessor)
+    .filter((name: string | null): name is string => Boolean(name));
   const settingValues = Object.fromEntries(
-    settings.map((setting) => [setting.key, setting.value]),
+    settings.map((setting: SettingsPair) => [setting.key, setting.value]),
   );
 
   return NextResponse.json({
     departments,
-    processes: processes.map(({ department, ...process }) => ({
+    processes: processes.map(({ department, ...process }: SettingsProcess) => ({
       ...process,
       departmentName: department.name,
     })),
-    trainees: trainees.map(({ department, ...trainee }) => ({
+    trainees: trainees.map(({ department, ...trainee }: SettingsTrainee) => ({
       ...trainee,
       departmentName: department.name,
     })),
     teamLeaders: Array.from(
       new Set([
-        ...teamLeaders.map((leader) => leader.name),
+        ...teamLeaders.map((leader: SettingsName) => leader.name),
         ...traineeTeamLeaders,
       ]),
-    ).sort((left, right) => left.localeCompare(right)),
+    ).sort((left: string, right: string) => left.localeCompare(right)),
     trainingAssessors: Array.from(
       new Set([
-        ...trainingAssessors.map((assessor) => assessor.name),
+        ...trainingAssessors.map((assessor: SettingsName) => assessor.name),
         ...traineeAssessors,
       ]),
-    ).sort((left, right) => left.localeCompare(right)),
-    trainingBuddies: trainingBuddies.map((buddy) => buddy.name),
+    ).sort((left: string, right: string) => left.localeCompare(right)),
+    trainingBuddies: trainingBuddies.map((buddy: SettingsName) => buddy.name),
     settings: settingValues,
   });
 }

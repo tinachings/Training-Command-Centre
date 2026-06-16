@@ -96,15 +96,21 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    trainees: trainees.map(({ traineeProcesses, ...trainee }) => ({
-      ...trainee,
-      departmentName: trainee.department.name,
-      assignments: traineeProcesses.map((assignment) => ({
-        traineeProcessId: assignment.id,
-        processId: assignment.process.id,
-        processName: assignment.process.name,
-      })),
-    })),
+    trainees: trainees.map(
+      ({ traineeProcesses, ...trainee }: AssessmentGeneratorTrainee) => ({
+        ...trainee,
+        departmentName: trainee.department.name,
+        assignments: traineeProcesses.map(
+          (
+            assignment: AssessmentGeneratorTrainee['traineeProcesses'][number],
+          ) => ({
+            traineeProcessId: assignment.id,
+            processId: assignment.process.id,
+            processName: assignment.process.name,
+          }),
+        ),
+      }),
+    ),
     recordCount,
   });
 }

@@ -1,11 +1,38 @@
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 const duplicateTraineeMessage = 'A trainee with this name, department and shift already exists.';
 
+type PrismaKnownRequestErrorLike = {
+  code?: unknown;
+};
+
+type TraineeListFollowUpAction = {
+  status: string;
+};
+
+type TraineeListProcess = {
+  stage: string;
+  status: string;
+  followUpFlag: string | null;
+  followUpActions: TraineeListFollowUpAction[];
+};
+
+type TraineeListItem = {
+  traineeProcesses: TraineeListProcess[];
+};
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as PrismaKnownRequestErrorLike).code === 'P2002'
+  );
+}
+
 export async function GET() {
-  const trainees = await prisma.trainee.findMany({
+  const trainees: TraineeListItem[] = await prisma.trainee.findMany({
     include: {
       department: true,
       traineeProcesses: {
@@ -25,23 +52,24 @@ export async function GET() {
   });
 
   return NextResponse.json(
-    trainees.map(({ traineeProcesses, ...trainee }) => ({
+    trainees.map(({ traineeProcesses, ...trainee }: TraineeListItem) => ({
       ...trainee,
       activeProcessCount: traineeProcesses.filter(
-        (process) =>
+        (process: TraineeListProcess) =>
           process.status !== 'Competent' &&
           process.status !== 'Archived' &&
           process.stage !== 'Competent',
       ).length,
       competentProcessCount: traineeProcesses.filter(
-        (process) =>
+        (process: TraineeListProcess) =>
           process.status === 'Competent' || process.stage === 'Competent',
       ).length,
       followUpRequired: traineeProcesses.some(
-        (process) =>
+        (process: TraineeListProcess) =>
           (process.followUpFlag && process.followUpFlag !== 'NONE') ||
           process.followUpActions.some(
-            (action) => action.status !== 'Completed' && action.status !== 'Closed',
+            (action: TraineeListFollowUpAction) =>
+              action.status !== 'Completed' && action.status !== 'Closed',
           ),
       ),
     })),
@@ -101,7 +129,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(trainee);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    if (isUniqueConstraintError(error)) {
       return NextResponse.json(
         {
           error: duplicateTraineeMessage,

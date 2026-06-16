@@ -3,6 +3,32 @@ import { prisma } from '@/lib/prisma';
 
 const completedFollowUpStatuses = ['Completed', 'Closed'];
 
+type ReportDepartment = {
+  name: string;
+};
+
+type ReportAssignment = {
+  stage: string;
+  status: string;
+};
+
+type ReportPlannerItem = {
+  status: string;
+};
+
+type ReportRefresher = {
+  status: string;
+};
+
+type ReportAssessment = {
+  assessmentType: string;
+  outcome: string;
+};
+
+type ReportIdOnly = {
+  id: number;
+};
+
 export async function GET(request: Request) {
   const department = new URL(request.url).searchParams.get('department')?.trim();
   const selectedDepartment =
@@ -24,6 +50,15 @@ export async function GET(request: Request) {
     assessments,
     timelineEvents,
     followUpActions,
+  ]: [
+    ReportDepartment[],
+    number,
+    ReportAssignment[],
+    ReportPlannerItem[],
+    ReportRefresher[],
+    ReportAssessment[],
+    ReportIdOnly[],
+    ReportIdOnly[],
   ] = await prisma.$transaction([
     prisma.department.findMany({
       where: {
@@ -164,12 +199,12 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const isCompetent = (assignment: (typeof assignments)[number]) =>
+  const isCompetent = (assignment: ReportAssignment) =>
     assignment.status === 'Competent' ||
     assignment.status === 'Completed' ||
     assignment.stage === 'Competent';
   const activeProcesses = assignments.filter(
-    (assignment) => !isCompetent(assignment),
+    (assignment: ReportAssignment) => !isCompetent(assignment),
   ).length;
   const competentProcesses = assignments.filter(isCompetent).length;
 
@@ -177,15 +212,15 @@ export async function GET(request: Request) {
     {
       title: 'Weekly Training Report',
       body: `Planned ${plannerItems.length}; Completed ${
-        plannerItems.filter((item) => item.status === 'Completed').length
+        plannerItems.filter((item: ReportPlannerItem) => item.status === 'Completed').length
       }; Deferred ${
-        plannerItems.filter((item) => item.status === 'Deferred').length
+        plannerItems.filter((item: ReportPlannerItem) => item.status === 'Deferred').length
       }`,
     },
     {
       title: 'Department Team Leader Update',
       body: `Active items ${activeProcesses}; Competent items ${competentProcesses}; Refreshers due ${
-        refreshers.filter((item) => item.status !== 'Completed').length
+        refreshers.filter((item: ReportRefresher) => item.status !== 'Completed').length
       }; Open follow-ups ${followUpActions.length}`,
     },
     {
@@ -196,29 +231,29 @@ export async function GET(request: Request) {
       title: 'Assessment Summary',
       body: `Pre-assessments ${
         assessments.filter(
-          (item) => item.assessmentType === 'Pre-Assessment',
+          (item: ReportAssessment) => item.assessmentType === 'Pre-Assessment',
         ).length
       }; Assessments ${
-        assessments.filter((item) => item.assessmentType === 'Assessment')
+        assessments.filter((item: ReportAssessment) => item.assessmentType === 'Assessment')
           .length
       }; Competent outcomes ${
-        assessments.filter((item) => item.outcome === 'Competent').length
+        assessments.filter((item: ReportAssessment) => item.outcome === 'Competent').length
       }`,
     },
     {
       title: 'Refresher Summary',
       body: `Overdue ${
-        refreshers.filter((item) => item.status === 'Overdue').length
+        refreshers.filter((item: ReportRefresher) => item.status === 'Overdue').length
       }; Due this month ${
-        refreshers.filter((item) => item.status === 'Due This Month').length
+        refreshers.filter((item: ReportRefresher) => item.status === 'Due This Month').length
       }; Completed ${
-        refreshers.filter((item) => item.status === 'Completed').length
+        refreshers.filter((item: ReportRefresher) => item.status === 'Completed').length
       }`,
     },
   ];
 
   return NextResponse.json({
-    departments: departments.map((item) => item.name),
+    departments: departments.map((item: ReportDepartment) => item.name),
     selectedDepartment: selectedDepartment ?? 'All',
     reports,
   });

@@ -203,7 +203,7 @@ export async function GET() {
     assignment.followUpActions.length > 0;
   const readinessValues = assignments
     .map((assignment: DashboardAssignment) => assignment.readinessScore)
-    .filter((value): value is number => value !== null);
+    .filter((value: number | null): value is number => value !== null);
 
   const departmentSummary = departmentNames.map(({ name }: DashboardDepartment) => {
     const departmentAssignments = assignments.filter(
@@ -241,7 +241,10 @@ export async function GET() {
       averageReadiness:
         readinessValues.length > 0
           ? Math.round(
-              readinessValues.reduce((total, value) => total + value, 0) /
+              readinessValues.reduce(
+                (total: number, value: number) => total + value,
+                0,
+              ) /
                 readinessValues.length,
             )
           : 0,
