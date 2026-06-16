@@ -41,7 +41,7 @@ export default function TraineesPage() {
   const [department, setDepartment] = useState('All');
   const [teamLeader, setTeamLeader] = useState('All');
   const [assessor, setAssessor] = useState('All');
-  const [status, setStatus] = useState('All');
+  const [status, setStatus] = useState('Active');
   const [error, setError] = useState('');
   const [archivingId, setArchivingId] = useState<number | null>(null);
 
