@@ -77,11 +77,14 @@ model TraineeProcess {
   timeSpentInShifts        Int?
   readinessScore           Int?
   readyForPreAssessment    Boolean             @default(false)
+  scheduledPreAssessmentDate DateTime?
   preAssessmentDate        DateTime?
   preAssessmentOutcome     String?
+  scheduledAssessmentDate  DateTime?
   assessmentDate           DateTime?
   assessmentOutcome        String?
   competencySignOffDate    DateTime?
+  assignedAssessor         String?
   nextAction               String?
   followUpFlag             String?
   requestedBy              String?
@@ -97,6 +100,8 @@ model TraineeProcess {
 
   @@index([stage])
   @@index([assessmentOutcome])
+  @@index([scheduledPreAssessmentDate])
+  @@index([scheduledAssessmentDate])
   @@index([department])
 }
 

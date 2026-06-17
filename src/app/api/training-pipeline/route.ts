@@ -9,6 +9,9 @@ type TrainingPipelineAssignment = {
   readinessScore: number | null;
   trainingBuddy: string | null;
   trainingStartDate: Date | null;
+  scheduledPreAssessmentDate: Date | null;
+  scheduledAssessmentDate: Date | null;
+  assignedAssessor: string | null;
   nextAction: string | null;
   followUpFlag: string | null;
   trainee: {
@@ -50,6 +53,9 @@ export async function GET(request: Request) {
       readinessScore: true,
       trainingBuddy: true,
       trainingStartDate: true,
+      scheduledPreAssessmentDate: true,
+      scheduledAssessmentDate: true,
+      assignedAssessor: true,
       nextAction: true,
       followUpFlag: true,
       trainee: {
@@ -85,6 +91,9 @@ export async function GET(request: Request) {
       readiness: assignment.readinessScore,
       trainingBuddy: assignment.trainingBuddy,
       trainingStartDate: assignment.trainingStartDate,
+      scheduledPreAssessmentDate: assignment.scheduledPreAssessmentDate,
+      scheduledAssessmentDate: assignment.scheduledAssessmentDate,
+      assignedAssessor: assignment.assignedAssessor,
       nextAction: assignment.nextAction,
       followUpFlag: assignment.followUpFlag,
     })),
