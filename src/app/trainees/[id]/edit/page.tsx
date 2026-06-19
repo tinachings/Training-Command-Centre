@@ -2,7 +2,29 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+type Department = {
+  id: number;
+  name: string;
+};
+
+type Role = {
+  id: number;
+  name: string;
+};
+
+type Person = {
+  id: number;
+  name: string;
+  active: boolean;
+  roles: Role[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+  roles: Role[];
+};
 
 type TraineeForm = {
   id: number;
@@ -31,12 +53,24 @@ type TraineeApiResponse = {
   startDate: string | null;
 };
 
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active && person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export default function EditTraineePage() {
   const params = useParams();
   const router = useRouter();
   const traineeId = Number(params.id);
   const hasValidTraineeId = Number.isInteger(traineeId) && traineeId > 0;
   const [form, setForm] = useState<TraineeForm | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(hasValidTraineeId);
   const [error, setError] = useState(hasValidTraineeId ? '' : 'Trainee not found.');
 
@@ -47,14 +81,24 @@ export default function EditTraineePage() {
 
     async function loadTrainee() {
       try {
-        const response = await fetch(`/api/trainees/${traineeId}`);
+        const [response, departmentsResponse, peopleResponse] =
+          await Promise.all([
+            fetch(`/api/trainees/${traineeId}`),
+            fetch('/api/departments', { cache: 'no-store' }),
+            fetch('/api/people', { cache: 'no-store' }),
+          ]);
 
-        if (!response.ok) {
+        if (!response.ok || !departmentsResponse.ok || !peopleResponse.ok) {
           setError(response.status === 404 ? 'Trainee not found.' : 'Failed to load trainee.');
           return;
         }
 
         const trainee = (await response.json()) as TraineeApiResponse;
+        const departmentData = (await departmentsResponse.json()) as Department[];
+        const peopleData = (await peopleResponse.json()) as PeopleResponse;
+
+        setDepartments(departmentData);
+        setPeople(peopleData.people);
         setForm({
           id: trainee.id,
           name: trainee.name,
@@ -75,6 +119,19 @@ export default function EditTraineePage() {
 
     void loadTrainee();
   }, [hasValidTraineeId, traineeId]);
+
+  const teamLeaderOptions = useMemo(
+    () => namesForRole(people, 'Team Leader'),
+    [people],
+  );
+  const shiftLeaderOptions = useMemo(
+    () => namesForRole(people, 'Shift Leader'),
+    [people],
+  );
+  const trainingAssessorOptions = useMemo(
+    () => namesForRole(people, 'Training Assessor'),
+    [people],
+  );
 
   const submit = async () => {
     if (!form) return;
@@ -112,10 +169,10 @@ export default function EditTraineePage() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-2 text-sm"><span>Trainee Name</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.name} onChange={(e) => setForm((prev) => prev ? { ...prev, name: e.target.value } : prev)} /></label>
-        <label className="space-y-2 text-sm"><span>Department</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.department} onChange={(e) => setForm((prev) => prev ? { ...prev, department: e.target.value } : prev)} /></label>
-        <label className="space-y-2 text-sm"><span>Team Leader</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.teamLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, teamLeader: e.target.value } : prev)} /></label>
-        <label className="space-y-2 text-sm"><span>Shift Leader</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.shiftLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, shiftLeader: e.target.value } : prev)} /></label>
-        <label className="space-y-2 text-sm"><span>Training Assessor</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingAssessor} onChange={(e) => setForm((prev) => prev ? { ...prev, trainingAssessor: e.target.value } : prev)} /></label>
+        <label className="space-y-2 text-sm"><span>Department</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.department} onChange={(e) => setForm((prev) => prev ? { ...prev, department: e.target.value } : prev)}>{departments.length ? departments.map((department) => <option key={department.id} value={department.name}>{department.name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Team Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.teamLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, teamLeader: e.target.value } : prev)}>{teamLeaderOptions.length ? teamLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Shift Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.shiftLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, shiftLeader: e.target.value } : prev)}>{shiftLeaderOptions.length ? shiftLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Training Assessor</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingAssessor} onChange={(e) => setForm((prev) => prev ? { ...prev, trainingAssessor: e.target.value } : prev)}>{trainingAssessorOptions.length ? trainingAssessorOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Shift</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.shift} onChange={(e) => setForm((prev) => prev ? { ...prev, shift: e.target.value } : prev)} /></label>
         <label className="space-y-2 text-sm"><span>Start Date</span><input type="date" className="w-full rounded-xl border border-slate-200 p-3" value={form.startDate} onChange={(e) => setForm((prev) => prev ? { ...prev, startDate: e.target.value } : prev)} /></label>
       </div>

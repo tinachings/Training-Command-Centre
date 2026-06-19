@@ -60,43 +60,68 @@ model TrainingBuddy {
   name String @unique
 }
 
+model Person {
+  id        Int          @id @default(autoincrement())
+  name      String       @unique
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  roles     PersonRole[]
+}
+
+model Role {
+  id        Int          @id @default(autoincrement())
+  name      String       @unique
+  people    PersonRole[]
+  createdAt DateTime     @default(now())
+}
+
+model PersonRole {
+  personId Int
+  roleId   Int
+  person   Person @relation(fields: [personId], references: [id])
+  role     Role   @relation(fields: [roleId], references: [id])
+
+  @@id([personId, roleId])
+}
+
 model TraineeProcess {
-  id                       Int                 @id @default(autoincrement())
-  traineeId                Int
-  processId                Int
-  trainee                  Trainee             @relation(fields: [traineeId], references: [id])
-  process                  Process             @relation(fields: [processId], references: [id])
-  stage                    String              @default("Requested")
-  status                   String              @default("Active")
-  department               String
-  trainingBuddy            String?
-  trainingStartDate        DateTime?
-  lastCheckInDate          DateTime?
-  buddyFeedbackScore       Int?
-  assessorObservationScore Int?
-  timeSpentInShifts        Int?
-  readinessScore           Int?
-  readyForPreAssessment    Boolean             @default(false)
+  id                         Int                 @id @default(autoincrement())
+  traineeId                  Int
+  processId                  Int
+  trainee                    Trainee             @relation(fields: [traineeId], references: [id])
+  process                    Process             @relation(fields: [processId], references: [id])
+  stage                      String              @default("Requested")
+  status                     String              @default("Active")
+  department                 String
+  trainingBuddy              String?
+  trainingStartDate          DateTime?
+  lastCheckInDate            DateTime?
+  buddyFeedbackScore         Int?
+  assessorObservationScore   Int?
+  timeSpentInShifts          Int?
+  readinessScore             Int?
+  readyForPreAssessment      Boolean             @default(false)
   scheduledPreAssessmentDate DateTime?
-  preAssessmentDate        DateTime?
-  preAssessmentOutcome     String?
-  scheduledAssessmentDate  DateTime?
-  assessmentDate           DateTime?
-  assessmentOutcome        String?
-  competencySignOffDate    DateTime?
-  assignedAssessor         String?
-  nextAction               String?
-  followUpFlag             String?
-  requestedBy              String?
-  riskAssessmentComplete   Boolean             @default(false)
-  sopComplete              Boolean             @default(false)
-  createdAt                DateTime            @default(now())
-  assessmentRecords        AssessmentRecord[]
-  weeklyPlannerItems       WeeklyPlannerItem[]
-  followUpActions          FollowUpAction[]
-  refresherRecord          RefresherRecord?
-  timelineEvents           TimelineEvent[]
-  checkIns                 ProcessCheckIn[]
+  preAssessmentDate          DateTime?
+  preAssessmentOutcome       String?
+  scheduledAssessmentDate    DateTime?
+  assessmentDate             DateTime?
+  assessmentOutcome          String?
+  competencySignOffDate      DateTime?
+  assignedAssessor           String?
+  nextAction                 String?
+  followUpFlag               String?
+  requestedBy                String?
+  riskAssessmentComplete     Boolean             @default(false)
+  sopComplete                Boolean             @default(false)
+  createdAt                  DateTime            @default(now())
+  assessmentRecords          AssessmentRecord[]
+  weeklyPlannerItems         WeeklyPlannerItem[]
+  followUpActions            FollowUpAction[]
+  refresherRecord            RefresherRecord?
+  timelineEvents             TimelineEvent[]
+  checkIns                   ProcessCheckIn[]
 
   @@index([stage])
   @@index([assessmentOutcome])

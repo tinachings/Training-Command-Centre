@@ -14,9 +14,28 @@ type Process = {
   departmentName: string;
 };
 
+type Role = {
+  id: number;
+  name: string;
+};
+
+type Person = {
+  id: number;
+  name: string;
+  active: boolean;
+  roles: Role[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+  roles: Role[];
+};
+
 type SettingsData = {
   departments: Department[];
   processes: Process[];
+  people: Person[];
+  roles: Role[];
   trainees: Array<{
     id: number;
     name: string;
@@ -35,12 +54,16 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingDepartment, setSavingDepartment] = useState(false);
   const [savingProcess, setSavingProcess] = useState(false);
+  const [savingPerson, setSavingPerson] = useState(false);
   const [error, setError] = useState('');
   const [departmentError, setDepartmentError] = useState('');
   const [processError, setProcessError] = useState('');
+  const [personError, setPersonError] = useState('');
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [newProcessDepartmentId, setNewProcessDepartmentId] = useState('');
   const [newProcessName, setNewProcessName] = useState('');
+  const [newPersonName, setNewPersonName] = useState('');
+  const [newPersonRoleIds, setNewPersonRoleIds] = useState<number[]>([]);
 
   async function loadDepartments() {
     const response = await fetch('/api/departments', {
@@ -66,17 +89,31 @@ export default function SettingsPage() {
     return (await response.json()) as Process[];
   }
 
+  async function loadPeople() {
+    const response = await fetch('/api/people', {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to load people.');
+    }
+
+    return (await response.json()) as PeopleResponse;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadSettings() {
       try {
-        const [settingsResponse, departments, processes] = await Promise.all([
+        const [settingsResponse, departments, processes, peopleData] =
+          await Promise.all([
           fetch('/api/settings', {
             cache: 'no-store',
           }),
           loadDepartments(),
           loadProcesses(),
+          loadPeople(),
         ]);
 
         if (!settingsResponse.ok) {
@@ -89,6 +126,8 @@ export default function SettingsPage() {
             ...result,
             departments,
             processes,
+            people: peopleData.people,
+            roles: peopleData.roles,
           });
           setNewProcessDepartmentId((current) =>
             current || (departments[0] ? String(departments[0].id) : ''),
@@ -214,6 +253,63 @@ export default function SettingsPage() {
     } finally {
       setSavingProcess(false);
     }
+  }
+
+  async function addPerson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPersonError('');
+
+    const name = newPersonName.trim();
+    if (!name) {
+      setPersonError('Person name is required.');
+      return;
+    }
+
+    setSavingPerson(true);
+
+    try {
+      const response = await fetch('/api/people', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, roleIds: newPersonRoleIds }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(result?.error || 'Failed to add person.');
+      }
+
+      const peopleData = await loadPeople();
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              people: peopleData.people,
+              roles: peopleData.roles,
+            }
+          : current,
+      );
+      setNewPersonName('');
+      setNewPersonRoleIds([]);
+    } catch (caught) {
+      setPersonError(
+        caught instanceof Error ? caught.message : 'Failed to add person.',
+      );
+    } finally {
+      setSavingPerson(false);
+    }
+  }
+
+  function toggleNewPersonRole(roleId: number) {
+    setNewPersonRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId],
+    );
   }
 
   const settingsCards = useMemo(() => {
@@ -406,6 +502,75 @@ export default function SettingsPage() {
                   )}
                 </article>
               ))}
+            </div>
+          </section>
+          <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div>
+              <h3 className="text-lg font-semibold">People Management</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Add people and assign operational roles for future workflow
+                controls.
+              </p>
+            </div>
+            <form className="space-y-3" onSubmit={addPerson}>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  className="rounded-xl border border-slate-200 p-3"
+                  value={newPersonName}
+                  onChange={(event) => setNewPersonName(event.target.value)}
+                  placeholder="Person name"
+                />
+                <button
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+                  disabled={savingPerson}
+                  type="submit"
+                >
+                  {savingPerson ? 'Adding...' : 'Add Person'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {data.roles.map((role) => (
+                  <label
+                    key={role.id}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <input
+                      checked={newPersonRoleIds.includes(role.id)}
+                      onChange={() => toggleNewPersonRole(role.id)}
+                      type="checkbox"
+                    />
+                    <span>{role.name}</span>
+                  </label>
+                ))}
+              </div>
+            </form>
+            {personError ? (
+              <p className="text-sm text-red-600">{personError}</p>
+            ) : null}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-slate-500">
+                  <tr>
+                    <th className="pb-3 text-left">Person</th>
+                    <th className="pb-3 text-left">Roles</th>
+                    <th className="pb-3 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.people.map((person) => (
+                    <tr key={person.id} className="border-t border-slate-100">
+                      <td className="py-3">{person.name}</td>
+                      <td className="py-3">
+                        {person.roles.map((role) => role.name).join(', ') ||
+                          'No roles assigned'}
+                      </td>
+                      <td className="py-3">
+                        {person.active ? 'Active' : 'Inactive'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
           <div className="overflow-x-auto">

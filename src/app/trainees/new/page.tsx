@@ -2,11 +2,40 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type ApiErrorResponse = {
   error?: unknown;
   message?: unknown;
+};
+
+type CreatedTraineeResponse = {
+  id?: unknown;
+  trainee?: {
+    id?: unknown;
+  };
+};
+
+type Department = {
+  id: number;
+  name: string;
+};
+
+type Role = {
+  id: number;
+  name: string;
+};
+
+type Person = {
+  id: number;
+  name: string;
+  active: boolean;
+  roles: Role[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+  roles: Role[];
 };
 
 function getApiErrorMessage(payload: ApiErrorResponse) {
@@ -14,18 +43,102 @@ function getApiErrorMessage(payload: ApiErrorResponse) {
   return typeof message === 'string' && message.trim() ? message : null;
 }
 
+function getCreatedTraineeId(payload: CreatedTraineeResponse) {
+  const id = Number(payload.id ?? payload.trainee?.id);
+
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active && person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export default function NewTraineePage() {
   const router = useRouter();
   const [error, setError] = useState('');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [form, setForm] = useState({
     name: '',
-    department: 'Surfacing',
-    teamLeader: 'M. Patel',
-    shiftLeader: 'R. Jones',
-    trainingAssessor: 'J. Evans',
+    department: '',
+    teamLeader: '',
+    shiftLeader: '',
+    trainingAssessor: '',
     shift: 'Days',
     startDate: '2026-06-01',
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMasterData() {
+      try {
+        const [departmentsResponse, peopleResponse] = await Promise.all([
+          fetch('/api/departments', { cache: 'no-store' }),
+          fetch('/api/people', { cache: 'no-store' }),
+        ]);
+
+        if (!departmentsResponse.ok || !peopleResponse.ok) {
+          throw new Error('Failed to load master data.');
+        }
+
+        const departmentData = (await departmentsResponse.json()) as Department[];
+        const peopleData = (await peopleResponse.json()) as PeopleResponse;
+
+        if (cancelled) {
+          return;
+        }
+
+        setDepartments(departmentData);
+        setPeople(peopleData.people);
+        setForm((current) => ({
+          ...current,
+          department: current.department || departmentData[0]?.name || '',
+          teamLeader:
+            current.teamLeader ||
+            namesForRole(peopleData.people, 'Team Leader')[0] ||
+            '',
+          shiftLeader:
+            current.shiftLeader ||
+            namesForRole(peopleData.people, 'Shift Leader')[0] ||
+            '',
+          trainingAssessor:
+            current.trainingAssessor ||
+            namesForRole(peopleData.people, 'Training Assessor')[0] ||
+            '',
+        }));
+      } catch {
+        if (!cancelled) {
+          setError('Failed to load master data.');
+        }
+      }
+    }
+
+    void loadMasterData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const teamLeaderOptions = useMemo(
+    () => namesForRole(people, 'Team Leader'),
+    [people],
+  );
+  const shiftLeaderOptions = useMemo(
+    () => namesForRole(people, 'Shift Leader'),
+    [people],
+  );
+  const trainingAssessorOptions = useMemo(
+    () => namesForRole(people, 'Training Assessor'),
+    [people],
+  );
 
 const submit = async () => {
   setError('');
@@ -44,9 +157,15 @@ const submit = async () => {
     return;
   }
 
-  const trainee = await response.json();
+  const trainee = (await response.json()) as CreatedTraineeResponse;
+  const traineeId = getCreatedTraineeId(trainee);
 
-  router.push(`/trainees/${trainee.id}`);
+  if (!traineeId) {
+    setError('Trainee was saved, but the new profile link was not returned.');
+    return;
+  }
+
+  router.push(`/trainees/${traineeId}`);
 };
 
   return (
@@ -58,10 +177,10 @@ const submit = async () => {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-2 text-sm"><span>Trainee Name</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} /></label>
-        <label className="space-y-2 text-sm"><span>Department</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.department} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))} /></label>
-        <label className="space-y-2 text-sm"><span>Team Leader</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.teamLeader} onChange={(e) => setForm((prev) => ({ ...prev, teamLeader: e.target.value }))} /></label>
-        <label className="space-y-2 text-sm"><span>Shift Leader</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.shiftLeader} onChange={(e) => setForm((prev) => ({ ...prev, shiftLeader: e.target.value }))} /></label>
-        <label className="space-y-2 text-sm"><span>Training Assessor</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingAssessor} onChange={(e) => setForm((prev) => ({ ...prev, trainingAssessor: e.target.value }))} /></label>
+        <label className="space-y-2 text-sm"><span>Department</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.department} onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}>{departments.length ? departments.map((department) => <option key={department.id} value={department.name}>{department.name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Team Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.teamLeader} onChange={(e) => setForm((prev) => ({ ...prev, teamLeader: e.target.value }))}>{teamLeaderOptions.length ? teamLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Shift Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.shiftLeader} onChange={(e) => setForm((prev) => ({ ...prev, shiftLeader: e.target.value }))}>{shiftLeaderOptions.length ? shiftLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
+        <label className="space-y-2 text-sm"><span>Training Assessor</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingAssessor} onChange={(e) => setForm((prev) => ({ ...prev, trainingAssessor: e.target.value }))}>{trainingAssessorOptions.length ? trainingAssessorOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Shift</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.shift} onChange={(e) => setForm((prev) => ({ ...prev, shift: e.target.value }))} /></label>
         <label className="space-y-2 text-sm"><span>Start Date</span><input type="date" className="w-full rounded-xl border border-slate-200 p-3" value={form.startDate} onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))} /></label>
       </div>
