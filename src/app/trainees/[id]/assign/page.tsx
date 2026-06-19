@@ -14,7 +14,9 @@ type TraineeResponse = {
 };
 
 type ProcessOption = {
+  id: number;
   name: string;
+  departmentId: number;
 };
 
 export default function AssignProcessPage() {
@@ -32,7 +34,7 @@ export default function AssignProcessPage() {
     traineeId,
     trainee: '',
     department: '',
-    process: '',
+    processId: '',
     trainingBuddy: 'T. Reed',
     trainingStartDate: '2026-06-10',
     stage: 'Requested',
@@ -78,7 +80,7 @@ export default function AssignProcessPage() {
           traineeId: trainee.id,
           trainee: trainee.name,
           department: trainee.department.name,
-          process: processOptions[0]?.name ?? '',
+          processId: processOptions[0] ? String(processOptions[0].id) : '',
           requestedBy: trainee.teamLeader || current.requestedBy,
         }));
         setLoadStatus('ready');
@@ -104,7 +106,7 @@ export default function AssignProcessPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          process: form.process,
+          processId: form.processId,
           stage: form.stage,
           nextAction: form.nextAction,
           followUpFlag: form.followUpFlag,
@@ -158,7 +160,7 @@ export default function AssignProcessPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-2 text-sm"><span>Trainee</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainee} readOnly /></label>
         <label className="space-y-2 text-sm"><span>Department</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.department} readOnly /></label>
-        <label className="space-y-2 text-sm"><span>Process</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.process} onChange={(e) => setForm((prev) => ({ ...prev, process: e.target.value }))}>{processes.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label>
+        <label className="space-y-2 text-sm"><span>Process</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.processId} onChange={(e) => setForm((prev) => ({ ...prev, processId: e.target.value }))}>{processes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="space-y-2 text-sm"><span>Training Buddy</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingBuddy} onChange={(e) => setForm((prev) => ({ ...prev, trainingBuddy: e.target.value }))} /></label>
         <label className="space-y-2 text-sm"><span>Date Requested</span><input type="date" className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingStartDate} onChange={(e) => setForm((prev) => ({ ...prev, trainingStartDate: e.target.value }))} /></label>
         <label className="space-y-2 text-sm"><span>Requested By</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.requestedBy} onChange={(e) => setForm((prev) => ({ ...prev, requestedBy: e.target.value }))} /></label>
@@ -173,7 +175,7 @@ export default function AssignProcessPage() {
       <div className="flex gap-3">
         <button
           onClick={submit}
-          disabled={submitting || !form.process}
+          disabled={submitting || !form.processId}
           className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Assigning...' : 'Assign Process'}

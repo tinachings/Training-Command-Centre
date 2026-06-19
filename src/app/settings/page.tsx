@@ -7,14 +7,16 @@ type Department = {
   name: string;
 };
 
+type Process = {
+  id: number;
+  name: string;
+  departmentId: number;
+  departmentName: string;
+};
+
 type SettingsData = {
   departments: Department[];
-  processes: Array<{
-    id: number;
-    name: string;
-    departmentId: number;
-    departmentName: string;
-  }>;
+  processes: Process[];
   trainees: Array<{
     id: number;
     name: string;
@@ -32,9 +34,13 @@ export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingDepartment, setSavingDepartment] = useState(false);
+  const [savingProcess, setSavingProcess] = useState(false);
   const [error, setError] = useState('');
   const [departmentError, setDepartmentError] = useState('');
+  const [processError, setProcessError] = useState('');
   const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [newProcessDepartmentId, setNewProcessDepartmentId] = useState('');
+  const [newProcessName, setNewProcessName] = useState('');
 
   async function loadDepartments() {
     const response = await fetch('/api/departments', {
@@ -48,16 +54,29 @@ export default function SettingsPage() {
     return (await response.json()) as Department[];
   }
 
+  async function loadProcesses() {
+    const response = await fetch('/api/processes', {
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to load processes.');
+    }
+
+    return (await response.json()) as Process[];
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadSettings() {
       try {
-        const [settingsResponse, departments] = await Promise.all([
+        const [settingsResponse, departments, processes] = await Promise.all([
           fetch('/api/settings', {
             cache: 'no-store',
           }),
           loadDepartments(),
+          loadProcesses(),
         ]);
 
         if (!settingsResponse.ok) {
@@ -69,7 +88,11 @@ export default function SettingsPage() {
           setData({
             ...result,
             departments,
+            processes,
           });
+          setNewProcessDepartmentId((current) =>
+            current || (departments[0] ? String(departments[0].id) : ''),
+          );
         }
       } catch {
         if (!cancelled) {
@@ -127,12 +150,69 @@ export default function SettingsPage() {
           : current,
       );
       setNewDepartmentName('');
+      setNewProcessDepartmentId((current) =>
+        current || (departments[0] ? String(departments[0].id) : ''),
+      );
     } catch (caught) {
       setDepartmentError(
         caught instanceof Error ? caught.message : 'Failed to add department.',
       );
     } finally {
       setSavingDepartment(false);
+    }
+  }
+
+  async function addProcess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProcessError('');
+
+    const departmentId = Number(newProcessDepartmentId);
+    const name = newProcessName.trim();
+
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      setProcessError('Department is required.');
+      return;
+    }
+
+    if (!name) {
+      setProcessError('Process name is required.');
+      return;
+    }
+
+    setSavingProcess(true);
+
+    try {
+      const response = await fetch('/api/processes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ departmentId, name }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(result?.error || 'Failed to add process.');
+      }
+
+      const processes = await loadProcesses();
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              processes,
+            }
+          : current,
+      );
+      setNewProcessName('');
+    } catch (caught) {
+      setProcessError(
+        caught instanceof Error ? caught.message : 'Failed to add process.',
+      );
+    } finally {
+      setSavingProcess(false);
     }
   }
 
@@ -169,6 +249,19 @@ export default function SettingsPage() {
         `${data.settings.readinessTargetShifts ?? '5'} shifts`,
       ],
     ];
+  }, [data]);
+
+  const processesByDepartment = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return data.departments.map((department) => ({
+      department,
+      processes: data.processes.filter(
+        (process) => process.departmentId === department.id,
+      ),
+    }));
   }, [data]);
 
   return (
@@ -245,6 +338,74 @@ export default function SettingsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </section>
+          <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div>
+              <h3 className="text-lg font-semibold">Process Management</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Add processes to departments for future assignment workflows.
+              </p>
+            </div>
+            <form
+              className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+              onSubmit={addProcess}
+            >
+              <select
+                className="rounded-xl border border-slate-200 p-3"
+                value={newProcessDepartmentId}
+                onChange={(event) =>
+                  setNewProcessDepartmentId(event.target.value)
+                }
+              >
+                {data.departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="rounded-xl border border-slate-200 p-3"
+                value={newProcessName}
+                onChange={(event) => setNewProcessName(event.target.value)}
+                placeholder="Process name"
+              />
+              <button
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+                disabled={savingProcess}
+                type="submit"
+              >
+                {savingProcess ? 'Adding...' : 'Add Process'}
+              </button>
+            </form>
+            {processError ? (
+              <p className="text-sm text-red-600">{processError}</p>
+            ) : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              {processesByDepartment.map(({ department, processes }) => (
+                <article
+                  key={department.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4"
+                >
+                  <h4 className="font-semibold">{department.name}</h4>
+                  {processes.length ? (
+                    <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                      {processes.map((process) => (
+                        <li
+                          key={process.id}
+                          className="border-t border-slate-100 pt-2 first:border-t-0 first:pt-0"
+                        >
+                          {process.name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">
+                      No processes configured.
+                    </p>
+                  )}
+                </article>
+              ))}
             </div>
           </section>
           <div className="overflow-x-auto">

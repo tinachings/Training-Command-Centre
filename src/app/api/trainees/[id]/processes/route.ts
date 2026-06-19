@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { processCatalog } from '@/lib/process-catalog';
 
 const duplicateAssignmentMessage =
   'This trainee already has an active assignment for that process.';
@@ -9,11 +8,12 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-type ProcessNameResult = {
-  name: string;
-};
-
 function parseTraineeId(value: string) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function parseProcessId(value: unknown) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
@@ -42,23 +42,21 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Trainee not found.' }, { status: 404 });
   }
 
-  const databaseProcesses: ProcessNameResult[] = await prisma.process.findMany({
+  const databaseProcesses = await prisma.process.findMany({
     where: {
       departmentId: trainee.departmentId,
     },
     select: {
+      id: true,
       name: true,
+      departmentId: true,
+    },
+    orderBy: {
+      name: 'asc',
     },
   });
 
-  const names = Array.from(
-    new Set([
-      ...(processCatalog[trainee.department.name] ?? []),
-      ...databaseProcesses.map((process: ProcessNameResult) => process.name),
-    ]),
-  ).sort((left: string, right: string) => left.localeCompare(right));
-
-  return NextResponse.json(names.map((name: string) => ({ name })));
+  return NextResponse.json(databaseProcesses);
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -70,10 +68,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const body = await request.json();
-  const processName = String(body.process ?? '').trim();
+  const processId = parseProcessId(body.processId);
   const requestedBy = String(body.requestedBy ?? '').trim() || null;
 
-  if (!processName) {
+  if (!processId) {
     return NextResponse.json({ error: 'Process is required.' }, { status: 400 });
   }
 
@@ -84,33 +82,21 @@ export async function POST(request: Request, context: RouteContext) {
     },
   });
 
-  if (!trainee) {
+  if (!trainee || trainee.archived) {
     return NextResponse.json({ error: 'Trainee not found.' }, { status: 404 });
   }
 
-  const allowedProcesses = processCatalog[trainee.department.name] ?? [];
+  const process = await prisma.process.findUnique({
+    where: {
+      id: processId,
+    },
+  });
 
-  if (!allowedProcesses.includes(processName)) {
+  if (!process || process.departmentId !== trainee.departmentId) {
     return NextResponse.json(
       { error: 'Process not found for this trainee department.' },
       { status: 400 },
     );
-  }
-
-  let process = await prisma.process.findFirst({
-    where: {
-      name: processName,
-      departmentId: trainee.departmentId,
-    },
-  });
-
-  if (!process) {
-    process = await prisma.process.create({
-      data: {
-        name: processName,
-        departmentId: trainee.departmentId,
-      },
-    });
   }
 
   const duplicate = await prisma.traineeProcess.findFirst({
