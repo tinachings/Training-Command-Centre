@@ -186,7 +186,7 @@ export default function RefreshersPage() {
           <table className="min-w-full text-sm">
             <thead className="text-slate-500">
               <tr>
-                <th className="pb-3 text-left">Trainee</th>
+                <th className="pb-3 text-left">Colleague</th>
                 <th className="pb-3 text-left">Process</th>
                 <th className="pb-3 text-left">Status</th>
                 <th className="pb-3 text-left">Due Date</th>
