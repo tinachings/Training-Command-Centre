@@ -3,6 +3,7 @@ import Link from 'next/link';
 const navItems = [
   ['Command Centre Dashboard', '/'],
   ['Daily Control', '/daily-control'],
+  ['Colleagues', '/colleagues'],
   ['Trainees', '/trainees'],
   ['Training Pipeline', '/training-pipeline'],
   ['Weekly Planner', '/weekly-planner'],
