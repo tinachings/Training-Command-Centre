@@ -16,6 +16,7 @@ type TrainingPipelineAssignment = {
   followUpFlag: string | null;
   trainee: {
     name: string;
+    trainingAssessor: string | null;
     department: {
       name: string;
     };
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
       trainee: {
         select: {
           name: true,
+          trainingAssessor: true,
           department: {
             select: {
               name: true,
@@ -94,6 +96,7 @@ export async function GET(request: Request) {
       scheduledPreAssessmentDate: assignment.scheduledPreAssessmentDate,
       scheduledAssessmentDate: assignment.scheduledAssessmentDate,
       assignedAssessor: assignment.assignedAssessor,
+      traineeTrainingAssessor: assignment.trainee.trainingAssessor,
       nextAction: assignment.nextAction,
       followUpFlag: assignment.followUpFlag,
     })),

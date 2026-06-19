@@ -17,6 +17,7 @@ type TrainingPipelineItem = {
   scheduledPreAssessmentDate: string | null;
   scheduledAssessmentDate: string | null;
   assignedAssessor: string | null;
+  traineeTrainingAssessor: string | null;
   nextAction: string | null;
   followUpFlag: string | null;
 };
@@ -27,15 +28,40 @@ type ScheduleForm = {
   assignedAssessor: string;
 };
 
+const assessmentDateOrderError =
+  'Assessment date cannot be earlier than pre-assessment date.';
+
 function formatDate(value: string | null) {
   return value ? value.slice(0, 10) : '';
+}
+
+function validAssessor(value: string | null) {
+  const assessor = value?.trim();
+
+  return assessor && assessor.toLowerCase() !== 'null' ? assessor : '';
+}
+
+function formatAssignedAssessor(item: TrainingPipelineItem) {
+  return (
+    validAssessor(item.assignedAssessor) ||
+    validAssessor(item.traineeTrainingAssessor) ||
+    'Not Assigned'
+  );
+}
+
+function hasInvalidAssessmentDateOrder(form: ScheduleForm) {
+  return (
+    form.scheduledPreAssessmentDate !== '' &&
+    form.scheduledAssessmentDate !== '' &&
+    form.scheduledAssessmentDate < form.scheduledPreAssessmentDate
+  );
 }
 
 function toScheduleForm(item: TrainingPipelineItem): ScheduleForm {
   return {
     scheduledPreAssessmentDate: formatDate(item.scheduledPreAssessmentDate),
     scheduledAssessmentDate: formatDate(item.scheduledAssessmentDate),
-    assignedAssessor: item.assignedAssessor ?? '',
+    assignedAssessor: validAssessor(item.assignedAssessor),
   };
 }
 
@@ -110,8 +136,14 @@ export default function TrainingPipelinePage() {
       return;
     }
 
-    setSaving(true);
     setScheduleError('');
+
+    if (hasInvalidAssessmentDateOrder(scheduleForm)) {
+      setScheduleError(assessmentDateOrderError);
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const response = await fetch(
@@ -343,7 +375,7 @@ export default function TrainingPipelinePage() {
                   <td className="py-3">
                     {formatDate(item.scheduledAssessmentDate)}
                   </td>
-                  <td className="py-3">{item.assignedAssessor ?? ''}</td>
+                  <td className="py-3">{formatAssignedAssessor(item)}</td>
                   <td className="py-3 text-slate-600">
                     {item.nextAction ?? ''}
                   </td>

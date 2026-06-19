@@ -19,6 +19,9 @@ type PrismaTransactionClient = Omit<
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
 
+const assessmentDateOrderError =
+  'Assessment date cannot be earlier than pre-assessment date.';
+
 function parseId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -84,6 +87,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   ) {
     return NextResponse.json(
       { error: 'Scheduled assessment date is invalid.' },
+      { status: 400 },
+    );
+  }
+
+  if (
+    scheduledPreAssessmentDate instanceof Date &&
+    scheduledAssessmentDate instanceof Date &&
+    scheduledAssessmentDate < scheduledPreAssessmentDate
+  ) {
+    return NextResponse.json(
+      { error: assessmentDateOrderError },
       { status: 400 },
     );
   }
