@@ -321,6 +321,9 @@ export async function GET(request: Request) {
     plannedDate: Date,
   ) => `${traineeName}|${process}|${plannedDate.toISOString().slice(0, 10)}`;
 
+  const isWithinSelectedWeek = (date: Date) =>
+    date >= weekBeginning && date < weekEnd;
+
   const existingKeysForActivity = (activityType: string) =>
     new Set(
       plannerItems
@@ -341,6 +344,19 @@ export async function GET(request: Request) {
     assignment.stage === assignment.status
       ? assignment.status
       : `${assignment.stage} / ${assignment.status}`;
+
+  const availableAssessor = (value: string | null) => {
+    const assessor = value?.trim();
+
+    return assessor && assessor.toLowerCase() !== 'null' ? assessor : null;
+  };
+
+  const scheduledAssessmentOwner = (
+    assignment: ScheduledAssessmentAssignment,
+  ) =>
+    availableAssessor(assignment.assignedAssessor) ||
+    availableAssessor(assignment.trainee.trainingAssessor) ||
+    'Not Assigned';
 
   const newTrainingItems = newTrainingAssignments
     .filter(
@@ -430,7 +446,9 @@ export async function GET(request: Request) {
         assignment: ScheduledAssessmentAssignment,
       ): assignment is ScheduledAssessmentAssignment & {
         scheduledPreAssessmentDate: Date;
-      } => assignment.scheduledPreAssessmentDate !== null,
+      } =>
+        assignment.scheduledPreAssessmentDate !== null &&
+        isWithinSelectedWeek(assignment.scheduledPreAssessmentDate),
     )
     .filter(
       (
@@ -460,7 +478,7 @@ export async function GET(request: Request) {
         traineeName: assignment.trainee.name,
         process: assignment.process.name,
         activityType: 'Pre-Assessment',
-        owner: assignment.assignedAssessor || assignment.trainee.trainingAssessor,
+        owner: scheduledAssessmentOwner(assignment),
         status: scheduledAssessmentStatus(assignment),
         actualDate: assignment.preAssessmentDate,
         deviationReason: null,
@@ -476,7 +494,9 @@ export async function GET(request: Request) {
         assignment: ScheduledAssessmentAssignment,
       ): assignment is ScheduledAssessmentAssignment & {
         scheduledAssessmentDate: Date;
-      } => assignment.scheduledAssessmentDate !== null,
+      } =>
+        assignment.scheduledAssessmentDate !== null &&
+        isWithinSelectedWeek(assignment.scheduledAssessmentDate),
     )
     .filter(
       (
@@ -506,7 +526,7 @@ export async function GET(request: Request) {
         traineeName: assignment.trainee.name,
         process: assignment.process.name,
         activityType: 'Assessment',
-        owner: assignment.assignedAssessor || assignment.trainee.trainingAssessor,
+        owner: scheduledAssessmentOwner(assignment),
         status: scheduledAssessmentStatus(assignment),
         actualDate: assignment.assessmentDate,
         deviationReason: null,

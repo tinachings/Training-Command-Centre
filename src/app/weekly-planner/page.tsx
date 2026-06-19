@@ -30,6 +30,14 @@ function formatDate(value: string) {
   return value.slice(0, 10);
 }
 
+function formatAssessor(value: string | null) {
+  const assessor = value?.trim();
+
+  return assessor && assessor.toLowerCase() !== 'null'
+    ? assessor
+    : 'Not Assigned';
+}
+
 function toDateInputValue(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -236,7 +244,7 @@ export default function WeeklyPlannerPage() {
                   <td className="py-3">
                     {item.actualDate ? formatDate(item.actualDate) : ''}
                   </td>
-                  <td className="py-3">{item.owner ?? ''}</td>
+                  <td className="py-3">{formatAssessor(item.owner)}</td>
                 </tr>
               ))}
               {filtered.length === 0 ? (
