@@ -27,6 +27,11 @@ type ColleagueListItem = {
   competencies: ColleagueCompetency[];
 };
 
+type DepartmentOption = {
+  id: number;
+  name: string;
+};
+
 function formatDate(value: string | null) {
   if (!value) {
     return '-';
@@ -47,6 +52,22 @@ function competencyStatus(competency: ColleagueCompetency) {
   return competency.assessmentOutcome || competency.stage || competency.status;
 }
 
+function refresherStatusClass(status: string) {
+  switch (status) {
+    case 'Overdue':
+      return 'bg-rose-50 text-rose-700';
+    case 'Due This Month':
+      return 'bg-amber-50 text-amber-700';
+    case 'Due Next Month':
+      return 'bg-sky-50 text-sky-700';
+    case 'Completed':
+      return 'bg-emerald-50 text-emerald-700';
+    case 'Not Due Yet':
+    default:
+      return 'bg-slate-100 text-slate-600';
+  }
+}
+
 async function fetchColleagues(signal?: AbortSignal) {
   const response = await fetch('/api/colleagues', {
     cache: 'no-store',
@@ -60,10 +81,25 @@ async function fetchColleagues(signal?: AbortSignal) {
   return (await response.json()) as ColleagueListItem[];
 }
 
+async function fetchDepartments(signal?: AbortSignal) {
+  const response = await fetch('/api/departments', {
+    cache: 'no-store',
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to load departments.');
+  }
+
+  return (await response.json()) as DepartmentOption[];
+}
+
 export default function ColleaguesPage() {
   const [colleagues, setColleagues] = useState<ColleagueListItem[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [department, setDepartment] = useState('All');
   const [process, setProcess] = useState('All');
+  const [refresherStatus, setRefresherStatus] = useState('All');
   const [status, setStatus] = useState('Active');
   const [expandedColleagueIds, setExpandedColleagueIds] = useState<number[]>(
     [],
@@ -75,7 +111,13 @@ export default function ColleaguesPage() {
 
     async function loadColleagues() {
       try {
-        setColleagues(await fetchColleagues(controller.signal));
+        const [colleagueData, departmentData] = await Promise.all([
+          fetchColleagues(controller.signal),
+          fetchDepartments(controller.signal),
+        ]);
+
+        setColleagues(colleagueData);
+        setDepartments(departmentData);
         setError('');
       } catch (loadError) {
         if ((loadError as Error).name !== 'AbortError') {
@@ -89,20 +131,26 @@ export default function ColleaguesPage() {
     return () => controller.abort();
   }, []);
 
-  const departmentOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(colleagues.map((colleague) => colleague.department.name)),
-      ).sort((left, right) => left.localeCompare(right)),
-    [colleagues],
-  );
-
   const processOptions = useMemo(
     () =>
       Array.from(
         new Set(
           colleagues.flatMap((colleague) =>
             colleague.competencies.map((competency) => competency.processName),
+          ),
+        ),
+      ).sort((left, right) => left.localeCompare(right)),
+    [colleagues],
+  );
+
+  const refresherStatusOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          colleagues.flatMap((colleague) =>
+            colleague.competencies
+              .map((competency) => competency.refresherStatus?.trim() ?? '')
+              .filter(Boolean),
           ),
         ),
       ).sort((left, right) => left.localeCompare(right)),
@@ -117,9 +165,12 @@ export default function ColleaguesPage() {
         }
 
         if (
-          process !== 'All' &&
+          (process !== 'All' || refresherStatus !== 'All') &&
           !colleague.competencies.some(
-            (competency) => competency.processName === process,
+            (competency) =>
+              (process === 'All' || competency.processName === process) &&
+              (refresherStatus === 'All' ||
+                competency.refresherStatus === refresherStatus),
           )
         ) {
           return false;
@@ -135,7 +186,7 @@ export default function ColleaguesPage() {
 
         return true;
       }),
-    [colleagues, department, process, status],
+    [colleagues, department, process, refresherStatus, status],
   );
 
   function toggleColleague(colleagueId: number) {
@@ -168,8 +219,8 @@ export default function ColleaguesPage() {
             className="rounded-xl border border-slate-200 p-3"
           >
             <option value="All">All Departments</option>
-            {departmentOptions.map((option) => (
-              <option key={option}>{option}</option>
+            {departments.map((option) => (
+              <option key={option.id}>{option.name}</option>
             ))}
           </select>
           <select
@@ -179,6 +230,16 @@ export default function ColleaguesPage() {
           >
             <option value="All">All Processes</option>
             {processOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <select
+            value={refresherStatus}
+            onChange={(event) => setRefresherStatus(event.target.value)}
+            className="rounded-xl border border-slate-200 p-3"
+          >
+            <option value="All">All Refresher Statuses</option>
+            {refresherStatusOptions.map((option) => (
               <option key={option}>{option}</option>
             ))}
           </select>
@@ -211,12 +272,13 @@ export default function ColleaguesPage() {
           <tbody>
             {filteredColleagues.map((colleague) => {
               const isExpanded = expandedColleagueIds.includes(colleague.id);
-              const visibleCompetencies =
-                process === 'All'
-                  ? colleague.competencies
-                  : colleague.competencies.filter(
-                      (competency) => competency.processName === process,
-                    );
+              const visibleCompetencies = colleague.competencies.filter(
+                (competency) =>
+                  (process === 'All' ||
+                    competency.processName === process) &&
+                  (refresherStatus === 'All' ||
+                    competency.refresherStatus === refresherStatus),
+              );
 
               return (
                 <Fragment key={colleague.id}>
@@ -285,7 +347,17 @@ export default function ColleaguesPage() {
                                     {formatDate(competency.refresherDueDate)}
                                   </td>
                                   <td className="px-4 py-3">
-                                    {competency.refresherStatus ?? '-'}
+                                    {competency.refresherStatus ? (
+                                      <span
+                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${refresherStatusClass(
+                                          competency.refresherStatus,
+                                        )}`}
+                                      >
+                                        {competency.refresherStatus}
+                                      </span>
+                                    ) : (
+                                      '-'
+                                    )}
                                   </td>
                                 </tr>
                               ))}
