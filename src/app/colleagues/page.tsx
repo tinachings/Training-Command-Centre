@@ -62,6 +62,8 @@ async function fetchColleagues(signal?: AbortSignal) {
 
 export default function ColleaguesPage() {
   const [colleagues, setColleagues] = useState<ColleagueListItem[]>([]);
+  const [department, setDepartment] = useState('All');
+  const [process, setProcess] = useState('All');
   const [status, setStatus] = useState('Active');
   const [expandedColleagueIds, setExpandedColleagueIds] = useState<number[]>(
     [],
@@ -87,9 +89,42 @@ export default function ColleaguesPage() {
     return () => controller.abort();
   }, []);
 
+  const departmentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(colleagues.map((colleague) => colleague.department.name)),
+      ).sort((left, right) => left.localeCompare(right)),
+    [colleagues],
+  );
+
+  const processOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          colleagues.flatMap((colleague) =>
+            colleague.competencies.map((competency) => competency.processName),
+          ),
+        ),
+      ).sort((left, right) => left.localeCompare(right)),
+    [colleagues],
+  );
+
   const filteredColleagues = useMemo(
     () =>
       colleagues.filter((colleague) => {
+        if (department !== 'All' && colleague.department.name !== department) {
+          return false;
+        }
+
+        if (
+          process !== 'All' &&
+          !colleague.competencies.some(
+            (competency) => competency.processName === process,
+          )
+        ) {
+          return false;
+        }
+
         if (status === 'Active') {
           return !colleague.archived;
         }
@@ -100,7 +135,7 @@ export default function ColleaguesPage() {
 
         return true;
       }),
-    [colleagues, status],
+    [colleagues, department, process, status],
   );
 
   function toggleColleague(colleagueId: number) {
@@ -126,15 +161,37 @@ export default function ColleaguesPage() {
             upcoming refresher needs.
           </p>
         </div>
-        <select
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-          className="rounded-xl border border-slate-200 p-3"
-        >
-          <option>Active</option>
-          <option>Archived</option>
-          <option>All</option>
-        </select>
+        <div className="flex flex-wrap gap-3">
+          <select
+            value={department}
+            onChange={(event) => setDepartment(event.target.value)}
+            className="rounded-xl border border-slate-200 p-3"
+          >
+            <option value="All">All Departments</option>
+            {departmentOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <select
+            value={process}
+            onChange={(event) => setProcess(event.target.value)}
+            className="rounded-xl border border-slate-200 p-3"
+          >
+            <option value="All">All Processes</option>
+            {processOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className="rounded-xl border border-slate-200 p-3"
+          >
+            <option>Active</option>
+            <option>Archived</option>
+            <option>All</option>
+          </select>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
@@ -154,6 +211,12 @@ export default function ColleaguesPage() {
           <tbody>
             {filteredColleagues.map((colleague) => {
               const isExpanded = expandedColleagueIds.includes(colleague.id);
+              const visibleCompetencies =
+                process === 'All'
+                  ? colleague.competencies
+                  : colleague.competencies.filter(
+                      (competency) => competency.processName === process,
+                    );
 
               return (
                 <Fragment key={colleague.id}>
@@ -202,7 +265,7 @@ export default function ColleaguesPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {colleague.competencies.map((competency) => (
+                              {visibleCompetencies.map((competency) => (
                                 <tr
                                   key={competency.traineeProcessId}
                                   className="border-t border-slate-100"
@@ -226,7 +289,7 @@ export default function ColleaguesPage() {
                                   </td>
                                 </tr>
                               ))}
-                              {colleague.competencies.length === 0 ? (
+                              {visibleCompetencies.length === 0 ? (
                                 <tr>
                                   <td
                                     className="px-4 py-6 text-sm text-slate-500"
