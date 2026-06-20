@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type ColleagueRefresherRecord = {
@@ -7,9 +8,14 @@ type ColleagueRefresherRecord = {
 };
 
 type ColleagueProcess = {
+  id: number;
   stage: string;
   status: string;
   assessmentOutcome: string | null;
+  competencySignOffDate: Date | null;
+  process: {
+    name: string;
+  };
   refresherRecord: ColleagueRefresherRecord | null;
 };
 
@@ -36,12 +42,20 @@ function isRefresherDue(
   refresher: ColleagueRefresherRecord | null,
   dueSoonCutoff: Date,
 ) {
+  const refresherStatus = refresher
+    ? normalizeRefresherStatus(refresher.status, refresher.refresherDueDate)
+    : null;
+
   return (
     refresher !== null &&
-    refresher.status !== 'Completed' &&
+    refresherStatus !== 'Completed' &&
     refresher.refresherDueDate !== null &&
     refresher.refresherDueDate <= dueSoonCutoff
   );
+}
+
+function dateValue(value: Date | null) {
+  return value ? value.toISOString() : null;
 }
 
 export async function GET() {
@@ -58,9 +72,16 @@ export async function GET() {
           },
         },
         select: {
+          id: true,
           stage: true,
           status: true,
           assessmentOutcome: true,
+          competencySignOffDate: true,
+          process: {
+            select: {
+              name: true,
+            },
+          },
           refresherRecord: {
             select: {
               refresherDueDate: true,
@@ -84,6 +105,23 @@ export async function GET() {
           isRefresherDue(process.refresherRecord, dueSoonCutoff),
       ).length,
       status: colleague.archived ? 'Archived' : 'Active',
+      competencies: traineeProcesses.map((process: ColleagueProcess) => ({
+        traineeProcessId: process.id,
+        processName: process.process.name,
+        stage: process.stage,
+        status: process.status,
+        assessmentOutcome: process.assessmentOutcome,
+        competencySignOffDate: dateValue(process.competencySignOffDate),
+        refresherDueDate: dateValue(
+          process.refresherRecord?.refresherDueDate ?? null,
+        ),
+        refresherStatus: process.refresherRecord
+          ? normalizeRefresherStatus(
+              process.refresherRecord.status,
+              process.refresherRecord.refresherDueDate,
+            )
+          : null,
+      })),
     })),
   );
 }
