@@ -159,7 +159,7 @@ export default function ColleaguesPage() {
                 <Fragment key={colleague.id}>
                   <tr className="border-t border-slate-100 align-top">
                     <td className="py-3 font-medium text-slate-900">
-                      <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex flex-col items-start gap-2">
                         <span>{colleague.name}</span>
                         <button
                           type="button"
