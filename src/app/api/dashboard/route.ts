@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 const completedStatuses = ['Completed', 'Closed'];
+const dueRefresherStatuses = ['Overdue', 'Due This Month', 'Due Next Month'];
 
 type DashboardAssignment = {
   id: number;
@@ -204,6 +206,14 @@ export async function GET() {
   const readinessValues = assignments
     .map((assignment: DashboardAssignment) => assignment.readinessScore)
     .filter((value: number | null): value is number => value !== null);
+  const normalizedRefreshers = refreshers.map((refresher) => ({
+    ...refresher,
+    status: normalizeRefresherStatus(
+      refresher.status,
+      refresher.refresherDueDate,
+      now,
+    ),
+  }));
 
   const departmentSummary = departmentNames.map(({ name }: DashboardDepartment) => {
     const departmentAssignments = assignments.filter(
@@ -256,12 +266,12 @@ export async function GET() {
         (assignment: DashboardAssignment) =>
           assignment.stage === 'Ready for Assessment',
       ).length,
-      refreshersDue: refreshers.length,
-      refreshersOverdue: refreshers.filter(
+      refreshersDue: normalizedRefreshers.filter(
         (refresher: DashboardRefresher) =>
-          refresher.status === 'Overdue' ||
-          (refresher.refresherDueDate !== null &&
-            refresher.refresherDueDate < now),
+          dueRefresherStatuses.includes(refresher.status),
+      ).length,
+      refreshersOverdue: normalizedRefreshers.filter(
+        (refresher: DashboardRefresher) => refresher.status === 'Overdue',
       ).length,
     },
     urgentPipeline: assignments
@@ -282,6 +292,10 @@ export async function GET() {
       })),
     departmentSummary,
     plannerHighlights,
-    urgentRefreshers: refreshers.slice(0, 5),
+    urgentRefreshers: normalizedRefreshers
+      .filter((refresher: DashboardRefresher) =>
+        dueRefresherStatuses.includes(refresher.status),
+      )
+      .slice(0, 5),
   });
 }

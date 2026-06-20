@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 const completedFollowUpStatuses = ['Completed', 'Closed'];
+const dueRefresherStatuses = ['Overdue', 'Due This Month', 'Due Next Month'];
 
 type ReportDepartment = {
   name: string;
@@ -18,6 +20,7 @@ type ReportPlannerItem = {
 
 type ReportRefresher = {
   status: string;
+  refresherDueDate: Date | null;
 };
 
 type ReportAssessment = {
@@ -135,6 +138,7 @@ export async function GET(request: Request) {
       },
       select: {
         status: true,
+        refresherDueDate: true,
       },
     }),
     prisma.assessmentRecord.findMany({
@@ -207,6 +211,13 @@ export async function GET(request: Request) {
     (assignment: ReportAssignment) => !isCompetent(assignment),
   ).length;
   const competentProcesses = assignments.filter(isCompetent).length;
+  const normalizedRefreshers = refreshers.map((refresher: ReportRefresher) => ({
+    ...refresher,
+    status: normalizeRefresherStatus(
+      refresher.status,
+      refresher.refresherDueDate,
+    ),
+  }));
 
   const reports = [
     {
@@ -220,7 +231,9 @@ export async function GET(request: Request) {
     {
       title: 'Department Team Leader Update',
       body: `Active items ${activeProcesses}; Competent items ${competentProcesses}; Refreshers due ${
-        refreshers.filter((item: ReportRefresher) => item.status !== 'Completed').length
+        normalizedRefreshers.filter((item: ReportRefresher) =>
+          dueRefresherStatuses.includes(item.status),
+        ).length
       }; Open follow-ups ${followUpActions.length}`,
     },
     {
@@ -243,11 +256,17 @@ export async function GET(request: Request) {
     {
       title: 'Refresher Summary',
       body: `Overdue ${
-        refreshers.filter((item: ReportRefresher) => item.status === 'Overdue').length
+        normalizedRefreshers.filter(
+          (item: ReportRefresher) => item.status === 'Overdue',
+        ).length
       }; Due this month ${
-        refreshers.filter((item: ReportRefresher) => item.status === 'Due This Month').length
+        normalizedRefreshers.filter(
+          (item: ReportRefresher) => item.status === 'Due This Month',
+        ).length
       }; Completed ${
-        refreshers.filter((item: ReportRefresher) => item.status === 'Completed').length
+        normalizedRefreshers.filter(
+          (item: ReportRefresher) => item.status === 'Completed',
+        ).length
       }`,
     },
   ];

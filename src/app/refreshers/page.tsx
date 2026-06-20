@@ -32,10 +32,22 @@ type ScheduleForm = {
   status: string;
 };
 
+type Person = {
+  name: string;
+  active: boolean;
+  roles: {
+    name: string;
+  }[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+};
+
 const refresherStatuses = [
-  'Due This Week',
   'Due This Month',
   'Due Next Month',
+  'Not Due Yet',
   'Overdue',
 ];
 
@@ -53,6 +65,16 @@ function formatAssessor(value: string | null) {
   return validAssessor(value) || 'Not Assigned';
 }
 
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active !== false &&
+        person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name);
+}
+
 export default function RefreshersPage() {
   const [refresherRecords, setRefresherRecords] = useState<RefresherRecord[]>(
     [],
@@ -68,6 +90,7 @@ export default function RefreshersPage() {
   const [department, setDepartment] = useState('All');
   const [status, setStatus] = useState('All');
   const [trainee, setTrainee] = useState('All');
+  const [trainingAssessors, setTrainingAssessors] = useState<string[]>([]);
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     traineeProcessId: '',
     refresherDueDate: '',
@@ -97,12 +120,13 @@ export default function RefreshersPage() {
       setLoading(true);
 
       try {
-        const [refreshers, processes] = await Promise.all([
+        const [refreshers, processes, people] = await Promise.all([
           fetch('/api/refreshers', { cache: 'no-store' }),
           fetch('/api/training-pipeline', { cache: 'no-store' }),
+          fetch('/api/people', { cache: 'no-store' }),
         ]);
 
-        if (!refreshers.ok || !processes.ok) {
+        if (!refreshers.ok || !processes.ok || !people.ok) {
           throw new Error('Failed to load refreshers.');
         }
 
@@ -110,10 +134,14 @@ export default function RefreshersPage() {
           (await refreshers.json()) as RefresherRecord[];
         const processData =
           (await processes.json()) as TrainingPipelineItem[];
+        const peopleData = (await people.json()) as PeopleResponse;
 
         if (!cancelled) {
           setRefresherRecords(refresherData);
           setTraineeProcesses(processData);
+          setTrainingAssessors(
+            namesForRole(peopleData.people, 'Training Assessor'),
+          );
         }
       } catch {
         if (!cancelled) {
@@ -157,11 +185,14 @@ export default function RefreshersPage() {
     const selected = traineeProcesses.find(
       (item) => String(item.traineeProcessId) === traineeProcessId,
     );
-
-    return selected
+    const assessor = selected
       ? validAssessor(selected.assignedAssessor) ||
-          validAssessor(selected.traineeTrainingAssessor)
+        validAssessor(selected.traineeTrainingAssessor)
       : '';
+
+    return trainingAssessors.includes(assessor)
+      ? assessor
+      : trainingAssessors[0] || '';
   }
 
   async function saveSchedule(event: FormEvent<HTMLFormElement>) {
@@ -236,15 +267,14 @@ export default function RefreshersPage() {
   const summary = {
     overdue: refresherRecords.filter((item) => item.status === 'Overdue')
       .length,
-    dueThisWeek: refresherRecords.filter(
-      (item) => item.status === 'Due This Week',
-    ).length,
     dueThisMonth: refresherRecords.filter(
       (item) => item.status === 'Due This Month',
     ).length,
     dueNextMonth: refresherRecords.filter(
       (item) => item.status === 'Due Next Month',
     ).length,
+    notDueYet: refresherRecords.filter((item) => item.status === 'Not Due Yet')
+      .length,
     completedThisMonth: refresherRecords.filter(
       (item) => item.status === 'Completed',
     ).length,
@@ -324,7 +354,7 @@ export default function RefreshersPage() {
               </label>
               <label className="space-y-2 text-sm">
                 <span>Assigned Assessor</span>
-                <input
+                <select
                   className="w-full rounded-xl border border-slate-200 p-3"
                   value={scheduleForm.assignedAssessor}
                   onChange={(event) =>
@@ -333,7 +363,19 @@ export default function RefreshersPage() {
                       assignedAssessor: event.target.value,
                     }))
                   }
-                />
+                >
+                  {trainingAssessors.length ? (
+                    trainingAssessors.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No options configured
+                    </option>
+                  )}
+                </select>
               </label>
               <label className="space-y-2 text-sm">
                 <span>Status</span>
@@ -387,9 +429,9 @@ export default function RefreshersPage() {
       <div className="grid gap-4 md:grid-cols-5">
         {[
           ['Overdue', summary.overdue],
-          ['Due This Week', summary.dueThisWeek],
           ['Due This Month', summary.dueThisMonth],
           ['Due Next Month', summary.dueNextMonth],
+          ['Not Due Yet', summary.notDueYet],
           ['Completed This Month', summary.completedThisMonth],
         ].map(([label, value]) => (
           <article

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upsertCompetencyRefresher } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 const validAssessmentTypes = ['Pre-Assessment', 'Assessment'];
@@ -249,6 +250,17 @@ export async function POST(request: Request) {
                 : {}),
             },
     });
+
+    if (assessmentType === 'Assessment' && outcome === 'Competent') {
+      await upsertCompetencyRefresher(transaction, {
+        traineeProcessId: assignment.id,
+        department: assignment.trainee.department.name,
+        traineeName: assignment.trainee.name,
+        process: assignment.process.name,
+        competencySignOffDate: assessmentDate,
+        assignedAssessor: assignment.trainee.trainingAssessor,
+      });
+    }
 
     return {
       assessmentRecord,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { upsertCompetencyRefresher } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type RouteContext = {
@@ -97,7 +98,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       traineeId,
     },
     include: {
-      trainee: true,
+      trainee: {
+        include: {
+          department: true,
+        },
+      },
       process: true,
     },
   });
@@ -112,6 +117,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   const body = await request.json();
   const readinessScore =
     body.readinessScore === undefined ? undefined : Number(body.readinessScore);
+  const preAssessmentDate = optionalDate(body.preAssessmentDate);
+  const assessmentDate = optionalDate(body.assessmentDate);
+  const requestedCompetencySignOffDate = optionalDate(
+    body.competencySignOffDate,
+  );
 
   if (
     readinessScore !== undefined &&
@@ -141,58 +151,77 @@ export async function PATCH(request: Request, context: RouteContext) {
       : stage === 'Competent'
         ? 'Competent'
         : 'Active';
+  const assessmentOutcome =
+    body.assessmentOutcome === undefined
+      ? undefined
+      : String(body.assessmentOutcome).trim() || null;
+  const isCompetent =
+    stage === 'Competent' || assessmentOutcome === 'Competent';
+  const competencySignOffDate =
+    isCompetent
+      ? requestedCompetencySignOffDate instanceof Date
+        ? requestedCompetencySignOffDate
+        : assignment.competencySignOffDate ?? new Date()
+      : requestedCompetencySignOffDate;
 
-  const updated = await prisma.traineeProcess.update({
-    where: { id: assignment.id },
-    data: {
-      ...(stage !== undefined ? { stage } : {}),
-      ...(status !== undefined ? { status } : {}),
-      ...(readinessScore !== undefined ? { readinessScore } : {}),
-      ...(nextAction !== undefined ? { nextAction } : {}),
-      ...(followUpFlag !== undefined ? { followUpFlag } : {}),
-      ...(body.preAssessmentOutcome !== undefined
-        ? {
-            preAssessmentOutcome:
-              String(body.preAssessmentOutcome).trim() || null,
-          }
-        : {}),
-      ...(body.assessmentOutcome !== undefined
-        ? {
-            assessmentOutcome: String(body.assessmentOutcome).trim() || null,
-          }
-        : {}),
-      ...(optionalDate(body.preAssessmentDate) !== undefined
-        ? { preAssessmentDate: optionalDate(body.preAssessmentDate) }
-        : {}),
-      ...(optionalDate(body.assessmentDate) !== undefined
-        ? { assessmentDate: optionalDate(body.assessmentDate) }
-        : {}),
-      ...(optionalDate(body.competencySignOffDate) !== undefined
-        ? {
-            competencySignOffDate: optionalDate(body.competencySignOffDate),
-          }
-        : {}),
-      timelineEvents: {
-        create: {
-          traineeId,
-          process: assignment.process.name,
-          eventType: 'Progress updated',
-          description: `Progress updated for ${assignment.process.name}.`,
-          user: String(body.user ?? '').trim() || 'Trainer',
+  const updated = await prisma.$transaction(async (transaction) => {
+    const traineeProcess = await transaction.traineeProcess.update({
+      where: { id: assignment.id },
+      data: {
+        ...(stage !== undefined ? { stage } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(readinessScore !== undefined ? { readinessScore } : {}),
+        ...(nextAction !== undefined ? { nextAction } : {}),
+        ...(followUpFlag !== undefined ? { followUpFlag } : {}),
+        ...(body.preAssessmentOutcome !== undefined
+          ? {
+              preAssessmentOutcome:
+                String(body.preAssessmentOutcome).trim() || null,
+            }
+          : {}),
+        ...(assessmentOutcome !== undefined ? { assessmentOutcome } : {}),
+        ...(preAssessmentDate !== undefined ? { preAssessmentDate } : {}),
+        ...(assessmentDate !== undefined ? { assessmentDate } : {}),
+        ...(competencySignOffDate !== undefined
+          ? {
+              competencySignOffDate,
+            }
+          : {}),
+        timelineEvents: {
+          create: {
+            traineeId,
+            process: assignment.process.name,
+            eventType: 'Progress updated',
+            description: `Progress updated for ${assignment.process.name}.`,
+            user: String(body.user ?? '').trim() || 'Trainer',
+          },
         },
       },
-    },
-    include: {
-      trainee: {
-        include: {
-          department: true,
+      include: {
+        trainee: {
+          include: {
+            department: true,
+          },
+        },
+        process: true,
+        timelineEvents: {
+          orderBy: [{ createdAt: 'desc' }, { date: 'desc' }],
         },
       },
-      process: true,
-      timelineEvents: {
-        orderBy: [{ createdAt: 'desc' }, { date: 'desc' }],
-      },
-    },
+    });
+
+    if (isCompetent && competencySignOffDate instanceof Date) {
+      await upsertCompetencyRefresher(transaction, {
+        traineeProcessId: assignment.id,
+        department: assignment.trainee.department.name,
+        traineeName: assignment.trainee.name,
+        process: assignment.process.name,
+        competencySignOffDate,
+        assignedAssessor: assignment.trainee.trainingAssessor,
+      });
+    }
+
+    return traineeProcess;
   });
 
   return NextResponse.json(updated);

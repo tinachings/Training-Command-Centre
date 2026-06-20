@@ -19,6 +19,28 @@ type ProcessOption = {
   departmentId: number;
 };
 
+type Person = {
+  name: string;
+  active: boolean;
+  roles: {
+    name: string;
+  }[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+};
+
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active !== false &&
+        person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name);
+}
+
 export default function AssignProcessPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -28,6 +50,8 @@ export default function AssignProcessPage() {
     hasValidTraineeId ? 'loading' : 'error',
   );
   const [processes, setProcesses] = useState<ProcessOption[]>([]);
+  const [trainingBuddies, setTrainingBuddies] = useState<string[]>([]);
+  const [teamLeaders, setTeamLeaders] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -35,10 +59,10 @@ export default function AssignProcessPage() {
     trainee: '',
     department: '',
     processId: '',
-    trainingBuddy: 'T. Reed',
+    trainingBuddy: '',
     trainingStartDate: '2026-06-10',
     stage: 'Requested',
-    requestedBy: 'M. Patel',
+    requestedBy: '',
     riskAssessmentComplete: true,
     sopComplete: true,
     nextAction: 'Confirm setup and training plan',
@@ -54,7 +78,8 @@ export default function AssignProcessPage() {
 
     async function loadTrainee() {
       try {
-        const [traineeResponse, processesResponse] = await Promise.all([
+        const [traineeResponse, processesResponse, peopleResponse] =
+          await Promise.all([
           fetch(`/api/trainees/${traineeId}`, {
             cache: 'no-store',
             signal: controller.signal,
@@ -63,9 +88,13 @@ export default function AssignProcessPage() {
             cache: 'no-store',
             signal: controller.signal,
           }),
+          fetch('/api/people', {
+            cache: 'no-store',
+            signal: controller.signal,
+          }),
         ]);
 
-        if (!traineeResponse.ok || !processesResponse.ok) {
+        if (!traineeResponse.ok || !processesResponse.ok || !peopleResponse.ok) {
           setLoadStatus('error');
           return;
         }
@@ -73,15 +102,29 @@ export default function AssignProcessPage() {
         const trainee = (await traineeResponse.json()) as TraineeResponse;
         const processOptions =
           (await processesResponse.json()) as ProcessOption[];
+        const peopleData = (await peopleResponse.json()) as PeopleResponse;
+        const trainingBuddyOptions = namesForRole(
+          peopleData.people,
+          'Training Buddy',
+        );
+        const teamLeaderOptions = namesForRole(
+          peopleData.people,
+          'Team Leader',
+        );
 
         setProcesses(processOptions);
+        setTrainingBuddies(trainingBuddyOptions);
+        setTeamLeaders(teamLeaderOptions);
         setForm((current) => ({
           ...current,
           traineeId: trainee.id,
           trainee: trainee.name,
           department: trainee.department.name,
           processId: processOptions[0] ? String(processOptions[0].id) : '',
-          requestedBy: trainee.teamLeader || current.requestedBy,
+          trainingBuddy: trainingBuddyOptions[0] || '',
+          requestedBy: trainee.teamLeader && teamLeaderOptions.includes(trainee.teamLeader)
+            ? trainee.teamLeader
+            : teamLeaderOptions[0] || '',
         }));
         setLoadStatus('ready');
       } catch (error) {
@@ -112,6 +155,7 @@ export default function AssignProcessPage() {
           followUpFlag: form.followUpFlag,
           trainingBuddy: form.trainingBuddy,
           trainingStartDate: form.trainingStartDate,
+          requestedBy: form.requestedBy,
         }),
       });
 
@@ -161,9 +205,9 @@ export default function AssignProcessPage() {
         <label className="space-y-2 text-sm"><span>Trainee</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainee} readOnly /></label>
         <label className="space-y-2 text-sm"><span>Department</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.department} readOnly /></label>
         <label className="space-y-2 text-sm"><span>Process</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.processId} onChange={(e) => setForm((prev) => ({ ...prev, processId: e.target.value }))}>{processes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <label className="space-y-2 text-sm"><span>Training Buddy</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingBuddy} onChange={(e) => setForm((prev) => ({ ...prev, trainingBuddy: e.target.value }))} /></label>
+        <label className="space-y-2 text-sm"><span>Training Buddy</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingBuddy} onChange={(e) => setForm((prev) => ({ ...prev, trainingBuddy: e.target.value }))}>{trainingBuddies.length ? trainingBuddies.map((name) => <option key={name} value={name}>{name}</option>) : <option value="" disabled>No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Date Requested</span><input type="date" className="w-full rounded-xl border border-slate-200 p-3" value={form.trainingStartDate} onChange={(e) => setForm((prev) => ({ ...prev, trainingStartDate: e.target.value }))} /></label>
-        <label className="space-y-2 text-sm"><span>Requested By</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.requestedBy} onChange={(e) => setForm((prev) => ({ ...prev, requestedBy: e.target.value }))} /></label>
+        <label className="space-y-2 text-sm"><span>Requested By</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.requestedBy} onChange={(e) => setForm((prev) => ({ ...prev, requestedBy: e.target.value }))}>{teamLeaders.length ? teamLeaders.map((name) => <option key={name} value={name}>{name}</option>) : <option value="" disabled>No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Risk Assessment Complete</span><select className="w-full rounded-xl border border-slate-200 p-3" value={String(form.riskAssessmentComplete)} onChange={(e) => setForm((prev) => ({ ...prev, riskAssessmentComplete: e.target.value === 'true' }))}><option value="true">Yes</option><option value="false">No</option></select></label>
         <label className="space-y-2 text-sm"><span>SOP Complete</span><select className="w-full rounded-xl border border-slate-200 p-3" value={String(form.sopComplete)} onChange={(e) => setForm((prev) => ({ ...prev, sopComplete: e.target.value === 'true' }))}><option value="true">Yes</option><option value="false">No</option></select></label>
         <label className="space-y-2 text-sm"><span>Initial Stage</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.stage} onChange={(e) => setForm((prev) => ({ ...prev, stage: e.target.value, nextAction: e.target.value === 'In Training' ? 'Continue coaching and log check-in' : e.target.value === 'Setup Complete' ? 'Verify training setup and buddy handover' : 'Confirm request and schedule first session' }))}><option>Requested</option><option>Setup Complete</option><option>In Training</option></select></label>

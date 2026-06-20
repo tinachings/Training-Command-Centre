@@ -28,6 +28,18 @@ type ScheduleForm = {
   assignedAssessor: string;
 };
 
+type Person = {
+  name: string;
+  active: boolean;
+  roles: {
+    name: string;
+  }[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+};
+
 const assessmentDateOrderError =
   'Assessment date cannot be earlier than pre-assessment date.';
 
@@ -57,11 +69,28 @@ function hasInvalidAssessmentDateOrder(form: ScheduleForm) {
   );
 }
 
-function toScheduleForm(item: TrainingPipelineItem): ScheduleForm {
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active !== false &&
+        person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name);
+}
+
+function toScheduleForm(
+  item: TrainingPipelineItem,
+  trainingAssessors: string[],
+): ScheduleForm {
+  const assignedAssessor = validAssessor(item.assignedAssessor);
+
   return {
     scheduledPreAssessmentDate: formatDate(item.scheduledPreAssessmentDate),
     scheduledAssessmentDate: formatDate(item.scheduledAssessmentDate),
-    assignedAssessor: validAssessor(item.assignedAssessor),
+    assignedAssessor: trainingAssessors.includes(assignedAssessor)
+      ? assignedAssessor
+      : trainingAssessors[0] || '',
   };
 }
 
@@ -77,6 +106,7 @@ export default function TrainingPipelinePage() {
   const [stage, setStage] = useState('All');
   const [trainee, setTrainee] = useState('All');
   const [process, setProcess] = useState('All');
+  const [trainingAssessors, setTrainingAssessors] = useState<string[]>([]);
   const [schedulingItem, setSchedulingItem] =
     useState<TrainingPipelineItem | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
@@ -90,16 +120,25 @@ export default function TrainingPipelinePage() {
     setError('');
 
     try {
-      const response = await fetch('/api/training-pipeline', {
-        cache: 'no-store',
-      });
+      const [response, peopleResponse] = await Promise.all([
+        fetch('/api/training-pipeline', {
+          cache: 'no-store',
+        }),
+        fetch('/api/people', {
+          cache: 'no-store',
+        }),
+      ]);
 
-      if (!response.ok) {
+      if (!response.ok || !peopleResponse.ok) {
         throw new Error('Failed to load training pipeline.');
       }
 
       const data = (await response.json()) as TrainingPipelineItem[];
+      const peopleData = (await peopleResponse.json()) as PeopleResponse;
       setTraineeProcesses(data);
+      setTrainingAssessors(
+        namesForRole(peopleData.people, 'Training Assessor'),
+      );
     } catch {
       setError('Failed to load training pipeline.');
     } finally {
@@ -125,7 +164,7 @@ export default function TrainingPipelinePage() {
 
   function openSchedule(item: TrainingPipelineItem) {
     setSchedulingItem(item);
-    setScheduleForm(toScheduleForm(item));
+    setScheduleForm(toScheduleForm(item, trainingAssessors));
     setScheduleError('');
   }
 
@@ -289,7 +328,7 @@ export default function TrainingPipelinePage() {
             </label>
             <label className="space-y-2 text-sm">
               <span>Assigned Assessor</span>
-              <input
+              <select
                 className="w-full rounded-xl border border-slate-200 p-3"
                 value={scheduleForm.assignedAssessor}
                 onChange={(event) =>
@@ -298,7 +337,19 @@ export default function TrainingPipelinePage() {
                     assignedAssessor: event.target.value,
                   }))
                 }
-              />
+              >
+                {trainingAssessors.length ? (
+                  trainingAssessors.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>
+                    No options configured
+                  </option>
+                )}
+              </select>
             </label>
           </div>
           {scheduleError ? (

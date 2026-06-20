@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type RefresherBody = {
@@ -76,7 +77,15 @@ export async function GET() {
     ],
   });
 
-  return NextResponse.json(refreshers);
+  return NextResponse.json(
+    refreshers.map((refresher) => ({
+      ...refresher,
+      status: normalizeRefresherStatus(
+        refresher.status,
+        refresher.refresherDueDate,
+      ),
+    })),
+  );
 }
 
 export async function POST(request: Request) {
