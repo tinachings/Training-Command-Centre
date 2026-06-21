@@ -9,6 +9,7 @@ datasource db {
 model Department {
   id        Int       @id @default(autoincrement())
   name      String    @unique
+  active    Boolean   @default(true)
   processes Process[]
   trainees  Trainee[]
   createdAt DateTime  @default(now())

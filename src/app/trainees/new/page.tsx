@@ -19,6 +19,7 @@ type CreatedTraineeResponse = {
 type Department = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 type Role = {
@@ -90,16 +91,19 @@ export default function NewTraineePage() {
 
         const departmentData = (await departmentsResponse.json()) as Department[];
         const peopleData = (await peopleResponse.json()) as PeopleResponse;
+        const activeDepartments = departmentData.filter(
+          (department) => department.active,
+        );
 
         if (cancelled) {
           return;
         }
 
-        setDepartments(departmentData);
+        setDepartments(activeDepartments);
         setPeople(peopleData.people);
         setForm((current) => ({
           ...current,
-          department: current.department || departmentData[0]?.name || '',
+          department: current.department || activeDepartments[0]?.name || '',
           teamLeader:
             current.teamLeader ||
             namesForRole(peopleData.people, 'Team Leader')[0] ||

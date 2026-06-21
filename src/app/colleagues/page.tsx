@@ -37,6 +37,7 @@ type ColleagueListItem = {
 type DepartmentOption = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 type Person = {
@@ -217,9 +218,17 @@ export default function ColleaguesPage() {
           fetchDepartments(controller.signal),
           fetchPeople(controller.signal),
         ]);
+        const representedDepartments = new Set(
+          colleagueData.map((colleague) => colleague.department.name),
+        );
 
         setColleagues(colleagueData);
-        setDepartments(departmentData);
+        setDepartments(
+          departmentData.filter(
+            (department) =>
+              department.active || representedDepartments.has(department.name),
+          ),
+        );
         setTrainingAssessors(
           namesForRole(peopleData.people, 'Training Assessor'),
         );

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 type Department = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 type Role = {
@@ -96,8 +97,14 @@ export default function EditTraineePage() {
         const trainee = (await response.json()) as TraineeApiResponse;
         const departmentData = (await departmentsResponse.json()) as Department[];
         const peopleData = (await peopleResponse.json()) as PeopleResponse;
+        const selectableDepartments = departmentData.filter(
+          (department) =>
+            department.active ||
+            department.id === trainee.departmentId ||
+            department.name === trainee.department.name,
+        );
 
-        setDepartments(departmentData);
+        setDepartments(selectableDepartments);
         setPeople(peopleData.people);
         setForm({
           id: trainee.id,

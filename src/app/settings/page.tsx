@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 type Department = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 type Process = {
@@ -37,6 +38,11 @@ type PersonEditForm = {
   roleIds: number[];
 };
 
+type DepartmentEditForm = {
+  name: string;
+  active: boolean;
+};
+
 type SettingsData = {
   departments: Department[];
   processes: Process[];
@@ -59,11 +65,13 @@ export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingDepartment, setSavingDepartment] = useState(false);
+  const [savingDepartmentEdit, setSavingDepartmentEdit] = useState(false);
   const [savingProcess, setSavingProcess] = useState(false);
   const [savingPerson, setSavingPerson] = useState(false);
   const [savingPersonEdit, setSavingPersonEdit] = useState(false);
   const [error, setError] = useState('');
   const [departmentError, setDepartmentError] = useState('');
+  const [departmentEditError, setDepartmentEditError] = useState('');
   const [processError, setProcessError] = useState('');
   const [personError, setPersonError] = useState('');
   const [personEditError, setPersonEditError] = useState('');
@@ -72,6 +80,14 @@ export default function SettingsPage() {
   const [newProcessName, setNewProcessName] = useState('');
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonRoleIds, setNewPersonRoleIds] = useState<number[]>([]);
+  const [editingDepartmentId, setEditingDepartmentId] = useState<number | null>(
+    null,
+  );
+  const [departmentEditForm, setDepartmentEditForm] =
+    useState<DepartmentEditForm>({
+      name: '',
+      active: true,
+    });
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
   const [personEditForm, setPersonEditForm] = useState<PersonEditForm>({
     name: '',
@@ -143,8 +159,12 @@ export default function SettingsPage() {
             people: peopleData.people,
             roles: peopleData.roles,
           });
+          const activeDepartments = departments.filter(
+            (department) => department.active,
+          );
           setNewProcessDepartmentId((current) =>
-            current || (departments[0] ? String(departments[0].id) : ''),
+            current ||
+            (activeDepartments[0] ? String(activeDepartments[0].id) : ''),
           );
         }
       } catch {
@@ -203,8 +223,12 @@ export default function SettingsPage() {
           : current,
       );
       setNewDepartmentName('');
+      const activeDepartments = departments.filter(
+        (department) => department.active,
+      );
       setNewProcessDepartmentId((current) =>
-        current || (departments[0] ? String(departments[0].id) : ''),
+        current ||
+        (activeDepartments[0] ? String(activeDepartments[0].id) : ''),
       );
     } catch (caught) {
       setDepartmentError(
@@ -212,6 +236,108 @@ export default function SettingsPage() {
       );
     } finally {
       setSavingDepartment(false);
+    }
+  }
+
+  function startEditingDepartment(department: Department) {
+    setEditingDepartmentId(department.id);
+    setDepartmentEditError('');
+    setDepartmentEditForm({
+      name: department.name,
+      active: department.active,
+    });
+  }
+
+  function cancelEditingDepartment() {
+    setEditingDepartmentId(null);
+    setDepartmentEditError('');
+    setDepartmentEditForm({
+      name: '',
+      active: true,
+    });
+  }
+
+  async function saveDepartmentEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDepartmentEditError('');
+
+    if (!editingDepartmentId || !data) {
+      setDepartmentEditError('Select a department to edit.');
+      return;
+    }
+
+    const name = departmentEditForm.name.trim();
+    if (!name) {
+      setDepartmentEditError('Department name is required.');
+      return;
+    }
+
+    const duplicateDepartment = data.departments.find(
+      (department) =>
+        department.id !== editingDepartmentId &&
+        department.name.toLowerCase() === name.toLowerCase(),
+    );
+
+    if (duplicateDepartment) {
+      setDepartmentEditError('Department already exists.');
+      return;
+    }
+
+    setSavingDepartmentEdit(true);
+
+    try {
+      const response = await fetch(`/api/departments/${editingDepartmentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          active: departmentEditForm.active,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(result?.error || 'Failed to update department.');
+      }
+
+      const departments = await loadDepartments();
+      const processes = await loadProcesses();
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              departments,
+              processes,
+            }
+          : current,
+      );
+
+      const activeDepartments = departments.filter(
+        (department) => department.active,
+      );
+      setNewProcessDepartmentId((current) =>
+        activeDepartments.some(
+          (department) => String(department.id) === current,
+        )
+          ? current
+          : activeDepartments[0]
+            ? String(activeDepartments[0].id)
+            : '',
+      );
+
+      cancelEditingDepartment();
+    } catch (caught) {
+      setDepartmentEditError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to update department.',
+      );
+    } finally {
+      setSavingDepartmentEdit(false);
     }
   }
 
@@ -460,6 +586,14 @@ export default function SettingsPage() {
     }));
   }, [data]);
 
+  const activeDepartments = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return data.departments.filter((department) => department.active);
+  }, [data]);
+
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
@@ -521,17 +655,92 @@ export default function SettingsPage() {
                 <thead className="text-slate-500">
                   <tr>
                     <th className="pb-3 text-left">Department</th>
+                    <th className="pb-3 text-left">Status</th>
+                    <th className="pb-3 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.departments.map((department) => (
-                    <tr
-                      key={department.id}
-                      className="border-t border-slate-200"
-                    >
-                      <td className="py-3">{department.name}</td>
-                    </tr>
-                  ))}
+                  {data.departments.map((department) =>
+                    editingDepartmentId === department.id ? (
+                      <tr
+                        key={department.id}
+                        className="border-t border-slate-200"
+                      >
+                        <td className="py-3 align-top">
+                          <input
+                            className="w-full rounded-xl border border-slate-200 p-3"
+                            value={departmentEditForm.name}
+                            onChange={(event) =>
+                              setDepartmentEditForm((current) => ({
+                                ...current,
+                                name: event.target.value,
+                              }))
+                            }
+                          />
+                          {departmentEditError ? (
+                            <p className="mt-2 text-sm text-red-600">
+                              {departmentEditError}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="py-3 align-top">
+                          <select
+                            className="rounded-xl border border-slate-200 p-3"
+                            value={String(departmentEditForm.active)}
+                            onChange={(event) =>
+                              setDepartmentEditForm((current) => ({
+                                ...current,
+                                active: event.target.value === 'true',
+                              }))
+                            }
+                          >
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                          </select>
+                        </td>
+                        <td className="py-3 align-top">
+                          <form
+                            className="flex flex-wrap gap-2"
+                            onSubmit={saveDepartmentEdit}
+                          >
+                            <button
+                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+                              disabled={savingDepartmentEdit}
+                              type="submit"
+                            >
+                              {savingDepartmentEdit ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs"
+                              type="button"
+                              onClick={cancelEditingDepartment}
+                            >
+                              Cancel
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        key={department.id}
+                        className="border-t border-slate-200"
+                      >
+                        <td className="py-3">{department.name}</td>
+                        <td className="py-3">
+                          {department.active ? 'Active' : 'Inactive'}
+                        </td>
+                        <td className="py-3">
+                          <button
+                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                            type="button"
+                            onClick={() => startEditingDepartment(department)}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -554,11 +763,15 @@ export default function SettingsPage() {
                   setNewProcessDepartmentId(event.target.value)
                 }
               >
-                {data.departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
+                {activeDepartments.length ? (
+                  activeDepartments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No active departments configured</option>
+                )}
               </select>
               <input
                 className="rounded-xl border border-slate-200 p-3"
@@ -583,7 +796,14 @@ export default function SettingsPage() {
                   key={department.id}
                   className="rounded-xl border border-slate-200 bg-white p-4"
                 >
-                  <h4 className="font-semibold">{department.name}</h4>
+                  <h4 className="font-semibold">
+                    {department.name}
+                    {!department.active ? (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
+                        Inactive
+                      </span>
+                    ) : null}
+                  </h4>
                   {processes.length ? (
                     <ul className="mt-3 space-y-2 text-sm text-slate-600">
                       {processes.map((process) => (

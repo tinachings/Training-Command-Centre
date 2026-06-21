@@ -48,6 +48,7 @@ export async function GET() {
     select: {
       id: true,
       name: true,
+      active: true,
     },
     orderBy: {
       name: 'asc',
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       select: {
         id: true,
         name: true,
+        active: true,
       },
     });
 
