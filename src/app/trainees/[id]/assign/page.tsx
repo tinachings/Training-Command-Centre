@@ -41,6 +41,10 @@ function namesForRole(people: Person[], roleName: string) {
     .map((person) => person.name);
 }
 
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function AssignProcessPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -67,6 +71,8 @@ export default function AssignProcessPage() {
     sopComplete: true,
     nextAction: 'Confirm setup and training plan',
     followUpFlag: 'NONE',
+    alreadyCompetent: false,
+    competencySignOffDate: todayInputValue(),
   });
 
   useEffect(() => {
@@ -156,6 +162,8 @@ export default function AssignProcessPage() {
           trainingBuddy: form.trainingBuddy,
           trainingStartDate: form.trainingStartDate,
           requestedBy: form.requestedBy,
+          alreadyCompetent: form.alreadyCompetent,
+          competencySignOffDate: form.competencySignOffDate,
         }),
       });
 
@@ -210,8 +218,10 @@ export default function AssignProcessPage() {
         <label className="space-y-2 text-sm"><span>Requested By</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.requestedBy} onChange={(e) => setForm((prev) => ({ ...prev, requestedBy: e.target.value }))}>{teamLeaders.length ? teamLeaders.map((name) => <option key={name} value={name}>{name}</option>) : <option value="" disabled>No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Risk Assessment Complete</span><select className="w-full rounded-xl border border-slate-200 p-3" value={String(form.riskAssessmentComplete)} onChange={(e) => setForm((prev) => ({ ...prev, riskAssessmentComplete: e.target.value === 'true' }))}><option value="true">Yes</option><option value="false">No</option></select></label>
         <label className="space-y-2 text-sm"><span>SOP Complete</span><select className="w-full rounded-xl border border-slate-200 p-3" value={String(form.sopComplete)} onChange={(e) => setForm((prev) => ({ ...prev, sopComplete: e.target.value === 'true' }))}><option value="true">Yes</option><option value="false">No</option></select></label>
-        <label className="space-y-2 text-sm"><span>Initial Stage</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.stage} onChange={(e) => setForm((prev) => ({ ...prev, stage: e.target.value, nextAction: e.target.value === 'In Training' ? 'Continue coaching and log check-in' : e.target.value === 'Setup Complete' ? 'Verify training setup and buddy handover' : 'Confirm request and schedule first session' }))}><option>Requested</option><option>Setup Complete</option><option>In Training</option></select></label>
-        <label className="space-y-2 text-sm"><span>Next Action</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.nextAction} onChange={(e) => setForm((prev) => ({ ...prev, nextAction: e.target.value }))} /></label>
+        <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.alreadyCompetent} onChange={(e) => setForm((prev) => ({ ...prev, alreadyCompetent: e.target.checked, competencySignOffDate: prev.competencySignOffDate || todayInputValue() }))} /><span>Already Competent</span></label>
+        {form.alreadyCompetent ? <label className="space-y-2 text-sm"><span>Competency Sign-off Date</span><input type="date" className="w-full rounded-xl border border-slate-200 p-3" value={form.competencySignOffDate} onChange={(e) => setForm((prev) => ({ ...prev, competencySignOffDate: e.target.value }))} /></label> : null}
+        {!form.alreadyCompetent ? <label className="space-y-2 text-sm"><span>Initial Stage</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.stage} onChange={(e) => setForm((prev) => ({ ...prev, stage: e.target.value, nextAction: e.target.value === 'In Training' ? 'Continue coaching and log check-in' : e.target.value === 'Setup Complete' ? 'Verify training setup and buddy handover' : 'Confirm request and schedule first session' }))}><option>Requested</option><option>Setup Complete</option><option>In Training</option></select></label> : null}
+        {!form.alreadyCompetent ? <label className="space-y-2 text-sm"><span>Next Action</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.nextAction} onChange={(e) => setForm((prev) => ({ ...prev, nextAction: e.target.value }))} /></label> : null}
       </div>
       {submitError ? (
         <p className="text-sm font-medium text-rose-700">{submitError}</p>
