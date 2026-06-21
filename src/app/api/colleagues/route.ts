@@ -14,6 +14,8 @@ type ColleagueProcess = {
   status: string;
   assessmentOutcome: string | null;
   competencySignOffDate: Date | null;
+  scheduledPreAssessmentDate: Date | null;
+  scheduledAssessmentDate: Date | null;
   assignedAssessor: string | null;
   process: {
     name: string;
@@ -89,6 +91,8 @@ export async function GET() {
           status: true,
           assessmentOutcome: true,
           competencySignOffDate: true,
+          scheduledPreAssessmentDate: true,
+          scheduledAssessmentDate: true,
           assignedAssessor: true,
           process: {
             select: {
@@ -133,6 +137,10 @@ export async function GET() {
           assignedAssessor: process.assignedAssessor,
           traineeTrainingAssessor: colleague.trainingAssessor,
           competencySignOffDate: dateValue(process.competencySignOffDate),
+          scheduledPreAssessmentDate: dateValue(
+            process.scheduledPreAssessmentDate,
+          ),
+          scheduledAssessmentDate: dateValue(process.scheduledAssessmentDate),
           refresherDueDate: signedOffCompetent
             ? dateValue(process.refresherRecord?.refresherDueDate ?? null)
             : null,

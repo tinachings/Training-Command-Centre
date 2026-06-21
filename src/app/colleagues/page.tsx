@@ -12,6 +12,8 @@ type ColleagueCompetency = {
   assignedAssessor: string | null;
   traineeTrainingAssessor: string | null;
   competencySignOffDate: string | null;
+  scheduledPreAssessmentDate: string | null;
+  scheduledAssessmentDate: string | null;
   refresherDueDate: string | null;
   refresherStatus: string | null;
 };
@@ -56,6 +58,20 @@ type RefresherScheduleForm = {
   refresherDueDate: string;
   assignedAssessor: string;
 };
+
+type AssessmentScheduleTarget = {
+  colleagueName: string;
+  competency: ColleagueCompetency;
+};
+
+type AssessmentScheduleForm = {
+  scheduledPreAssessmentDate: string;
+  scheduledAssessmentDate: string;
+  assignedAssessor: string;
+};
+
+const assessmentDateOrderError =
+  'Assessment date cannot be earlier than pre-assessment date.';
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -177,6 +193,14 @@ export default function ColleaguesPage() {
       refresherDueDate: '',
       assignedAssessor: '',
     });
+  const [assessmentScheduleTarget, setAssessmentScheduleTarget] =
+    useState<AssessmentScheduleTarget | null>(null);
+  const [assessmentScheduleForm, setAssessmentScheduleForm] =
+    useState<AssessmentScheduleForm>({
+      scheduledPreAssessmentDate: '',
+      scheduledAssessmentDate: '',
+      assignedAssessor: '',
+    });
   const [scheduleError, setScheduleError] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [error, setError] = useState('');
@@ -291,6 +315,7 @@ export default function ColleaguesPage() {
     colleagueName: string,
     competency: ColleagueCompetency,
   ) {
+    setAssessmentScheduleTarget(null);
     setRefresherScheduleTarget({ colleagueName, competency });
     setRefresherScheduleForm({
       refresherDueDate: dateInputValue(competency.refresherDueDate),
@@ -306,6 +331,42 @@ export default function ColleaguesPage() {
       assignedAssessor: '',
     });
     setScheduleError('');
+  }
+
+  function openScheduleAssessment(
+    colleagueName: string,
+    competency: ColleagueCompetency,
+  ) {
+    setRefresherScheduleTarget(null);
+    setAssessmentScheduleTarget({ colleagueName, competency });
+    setAssessmentScheduleForm({
+      scheduledPreAssessmentDate: dateInputValue(
+        competency.scheduledPreAssessmentDate,
+      ),
+      scheduledAssessmentDate: dateInputValue(
+        competency.scheduledAssessmentDate,
+      ),
+      assignedAssessor: defaultAssessor(competency),
+    });
+    setScheduleError('');
+  }
+
+  function closeScheduleAssessment() {
+    setAssessmentScheduleTarget(null);
+    setAssessmentScheduleForm({
+      scheduledPreAssessmentDate: '',
+      scheduledAssessmentDate: '',
+      assignedAssessor: '',
+    });
+    setScheduleError('');
+  }
+
+  function hasInvalidAssessmentDateOrder(form: AssessmentScheduleForm) {
+    return (
+      form.scheduledPreAssessmentDate !== '' &&
+      form.scheduledAssessmentDate !== '' &&
+      form.scheduledAssessmentDate < form.scheduledPreAssessmentDate
+    );
   }
 
   async function saveScheduleRefresher(event: FormEvent<HTMLFormElement>) {
@@ -353,6 +414,61 @@ export default function ColleaguesPage() {
         caught instanceof Error
           ? caught.message
           : 'Failed to schedule refresher.',
+      );
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
+
+  async function saveScheduleAssessment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!assessmentScheduleTarget) {
+      return;
+    }
+
+    setScheduleError('');
+
+    if (hasInvalidAssessmentDateOrder(assessmentScheduleForm)) {
+      setScheduleError(assessmentDateOrderError);
+      return;
+    }
+
+    setSavingSchedule(true);
+
+    try {
+      const response = await fetch(
+        `/api/training-pipeline/${assessmentScheduleTarget.competency.traineeProcessId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            scheduledPreAssessmentDate:
+              assessmentScheduleForm.scheduledPreAssessmentDate || null,
+            scheduledAssessmentDate:
+              assessmentScheduleForm.scheduledAssessmentDate || null,
+            assignedAssessor:
+              assessmentScheduleForm.assignedAssessor || null,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || 'Failed to schedule assessment.');
+      }
+
+      await reloadColleagues();
+      closeScheduleAssessment();
+    } catch (caught) {
+      setScheduleError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to schedule assessment.',
       );
     } finally {
       setSavingSchedule(false);
@@ -493,8 +609,12 @@ export default function ColleaguesPage() {
                             </thead>
                             <tbody>
                               {visibleCompetencies.map((competency) => {
-                                const isScheduling =
+                                const isSchedulingRefresher =
                                   refresherScheduleTarget?.competency
+                                    .traineeProcessId ===
+                                  competency.traineeProcessId;
+                                const isSchedulingAssessment =
+                                  assessmentScheduleTarget?.competency
                                     .traineeProcessId ===
                                   competency.traineeProcessId;
 
@@ -543,11 +663,145 @@ export default function ColleaguesPage() {
                                             Schedule Refresher
                                           </button>
                                         ) : (
-                                          '-'
+                                          <button
+                                            className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700"
+                                            type="button"
+                                            onClick={() =>
+                                              openScheduleAssessment(
+                                                colleague.name,
+                                                competency,
+                                              )
+                                            }
+                                          >
+                                            Schedule Assessment
+                                          </button>
                                         )}
                                       </td>
                                     </tr>
-                                    {isScheduling ? (
+                                    {isSchedulingAssessment ? (
+                                      <tr className="border-t border-slate-100 bg-violet-50/40">
+                                        <td className="px-4 py-4" colSpan={6}>
+                                          <form
+                                            className="space-y-3"
+                                            onSubmit={saveScheduleAssessment}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-slate-900">
+                                                Schedule assessment dates
+                                              </p>
+                                              <p className="text-sm text-slate-600">
+                                                {
+                                                  assessmentScheduleTarget
+                                                    .colleagueName
+                                                }{' '}
+                                                - {competency.processName}
+                                              </p>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-3">
+                                              <label className="space-y-2 text-sm">
+                                                <span>
+                                                  Scheduled Pre-Assessment Date
+                                                </span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="date"
+                                                  value={
+                                                    assessmentScheduleForm.scheduledPreAssessmentDate
+                                                  }
+                                                  onChange={(event) =>
+                                                    setAssessmentScheduleForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        scheduledPreAssessmentDate:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="space-y-2 text-sm">
+                                                <span>
+                                                  Scheduled Assessment Date
+                                                </span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="date"
+                                                  value={
+                                                    assessmentScheduleForm.scheduledAssessmentDate
+                                                  }
+                                                  onChange={(event) =>
+                                                    setAssessmentScheduleForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        scheduledAssessmentDate:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="space-y-2 text-sm">
+                                                <span>Assigned Assessor</span>
+                                                <select
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  value={
+                                                    assessmentScheduleForm.assignedAssessor
+                                                  }
+                                                  onChange={(event) =>
+                                                    setAssessmentScheduleForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        assignedAssessor:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                >
+                                                  <option value="">
+                                                    Select assessor
+                                                  </option>
+                                                  {trainingAssessors.map(
+                                                    (name) => (
+                                                      <option
+                                                        key={name}
+                                                        value={name}
+                                                      >
+                                                        {name}
+                                                      </option>
+                                                    ),
+                                                  )}
+                                                </select>
+                                              </label>
+                                            </div>
+                                            {scheduleError ? (
+                                              <p className="text-sm text-red-600">
+                                                {scheduleError}
+                                              </p>
+                                            ) : null}
+                                            <div className="flex flex-wrap gap-2">
+                                              <button
+                                                className="rounded-full bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                                                disabled={savingSchedule}
+                                                type="submit"
+                                              >
+                                                {savingSchedule
+                                                  ? 'Saving...'
+                                                  : 'Save Schedule'}
+                                              </button>
+                                              <button
+                                                className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                                                disabled={savingSchedule}
+                                                type="button"
+                                                onClick={closeScheduleAssessment}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </form>
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {isSchedulingRefresher ? (
                                       <tr className="border-t border-slate-100 bg-sky-50/40">
                                         <td className="px-4 py-4" colSpan={6}>
                                           <form
