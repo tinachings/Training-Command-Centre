@@ -1,13 +1,16 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
 
 type ColleagueCompetency = {
   traineeProcessId: number;
+  refresherRecordId: number | null;
   processName: string;
   stage: string;
   status: string;
   assessmentOutcome: string | null;
+  assignedAssessor: string | null;
+  traineeTrainingAssessor: string | null;
   competencySignOffDate: string | null;
   refresherDueDate: string | null;
   refresherStatus: string | null;
@@ -32,12 +35,44 @@ type DepartmentOption = {
   name: string;
 };
 
+type Person = {
+  name: string;
+  active: boolean;
+  roles: {
+    name: string;
+  }[];
+};
+
+type PeopleResponse = {
+  people: Person[];
+};
+
+type RefresherScheduleTarget = {
+  colleagueName: string;
+  competency: ColleagueCompetency;
+};
+
+type RefresherScheduleForm = {
+  refresherDueDate: string;
+  assignedAssessor: string;
+};
+
 function formatDate(value: string | null) {
   if (!value) {
     return '-';
   }
 
   return new Intl.DateTimeFormat('en-GB').format(new Date(value));
+}
+
+function dateInputValue(value: string | null) {
+  return value ? value.slice(0, 10) : '';
+}
+
+function validAssessor(value: string | null) {
+  const assessor = value?.trim();
+
+  return assessor && assessor.toLowerCase() !== 'null' ? assessor : '';
 }
 
 function competencyStatus(competency: ColleagueCompetency) {
@@ -50,6 +85,13 @@ function competencyStatus(competency: ColleagueCompetency) {
   }
 
   return competency.assessmentOutcome || competency.stage || competency.status;
+}
+
+function isCompetentSignedOff(competency: ColleagueCompetency) {
+  return (
+    competencyStatus(competency) === 'Competent' &&
+    competency.competencySignOffDate !== null
+  );
 }
 
 function refresherStatusClass(status: string) {
@@ -66,6 +108,16 @@ function refresherStatusClass(status: string) {
     default:
       return 'bg-slate-100 text-slate-600';
   }
+}
+
+function namesForRole(people: Person[], roleName: string) {
+  return people
+    .filter(
+      (person) =>
+        person.active !== false &&
+        person.roles.some((role) => role.name === roleName),
+    )
+    .map((person) => person.name);
 }
 
 async function fetchColleagues(signal?: AbortSignal) {
@@ -94,9 +146,23 @@ async function fetchDepartments(signal?: AbortSignal) {
   return (await response.json()) as DepartmentOption[];
 }
 
+async function fetchPeople(signal?: AbortSignal) {
+  const response = await fetch('/api/people', {
+    cache: 'no-store',
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to load people.');
+  }
+
+  return (await response.json()) as PeopleResponse;
+}
+
 export default function ColleaguesPage() {
   const [colleagues, setColleagues] = useState<ColleagueListItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [trainingAssessors, setTrainingAssessors] = useState<string[]>([]);
   const [department, setDepartment] = useState('All');
   const [process, setProcess] = useState('All');
   const [refresherStatus, setRefresherStatus] = useState('All');
@@ -104,6 +170,15 @@ export default function ColleaguesPage() {
   const [expandedColleagueIds, setExpandedColleagueIds] = useState<number[]>(
     [],
   );
+  const [refresherScheduleTarget, setRefresherScheduleTarget] =
+    useState<RefresherScheduleTarget | null>(null);
+  const [refresherScheduleForm, setRefresherScheduleForm] =
+    useState<RefresherScheduleForm>({
+      refresherDueDate: '',
+      assignedAssessor: '',
+    });
+  const [scheduleError, setScheduleError] = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -111,13 +186,17 @@ export default function ColleaguesPage() {
 
     async function loadColleagues() {
       try {
-        const [colleagueData, departmentData] = await Promise.all([
+        const [colleagueData, departmentData, peopleData] = await Promise.all([
           fetchColleagues(controller.signal),
           fetchDepartments(controller.signal),
+          fetchPeople(controller.signal),
         ]);
 
         setColleagues(colleagueData);
         setDepartments(departmentData);
+        setTrainingAssessors(
+          namesForRole(peopleData.people, 'Training Assessor'),
+        );
         setError('');
       } catch (loadError) {
         if ((loadError as Error).name !== 'AbortError') {
@@ -195,6 +274,89 @@ export default function ColleaguesPage() {
         ? current.filter((id) => id !== colleagueId)
         : [...current, colleagueId],
     );
+  }
+
+  async function reloadColleagues() {
+    setColleagues(await fetchColleagues());
+  }
+
+  function defaultAssessor(competency: ColleagueCompetency) {
+    return (
+      validAssessor(competency.assignedAssessor) ||
+      validAssessor(competency.traineeTrainingAssessor)
+    );
+  }
+
+  function openScheduleRefresher(
+    colleagueName: string,
+    competency: ColleagueCompetency,
+  ) {
+    setRefresherScheduleTarget({ colleagueName, competency });
+    setRefresherScheduleForm({
+      refresherDueDate: dateInputValue(competency.refresherDueDate),
+      assignedAssessor: defaultAssessor(competency),
+    });
+    setScheduleError('');
+  }
+
+  function closeScheduleRefresher() {
+    setRefresherScheduleTarget(null);
+    setRefresherScheduleForm({
+      refresherDueDate: '',
+      assignedAssessor: '',
+    });
+    setScheduleError('');
+  }
+
+  async function saveScheduleRefresher(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!refresherScheduleTarget) {
+      return;
+    }
+
+    setScheduleError('');
+
+    if (!refresherScheduleForm.refresherDueDate) {
+      setScheduleError('Refresher due date is required.');
+      return;
+    }
+
+    setSavingSchedule(true);
+
+    try {
+      const response = await fetch('/api/refreshers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          traineeProcessId:
+            refresherScheduleTarget.competency.traineeProcessId,
+          refresherDueDate: refresherScheduleForm.refresherDueDate,
+          assignedAssessor:
+            refresherScheduleForm.assignedAssessor || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || 'Failed to schedule refresher.');
+      }
+
+      await reloadColleagues();
+      closeScheduleRefresher();
+    } catch (caught) {
+      setScheduleError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to schedule refresher.',
+      );
+    } finally {
+      setSavingSchedule(false);
+    }
   }
 
   return (
@@ -324,48 +486,175 @@ export default function ColleaguesPage() {
                                 <th className="px-4 py-3 text-left">
                                   Refresher Status
                                 </th>
+                                <th className="px-4 py-3 text-left">
+                                  Actions
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {visibleCompetencies.map((competency) => (
-                                <tr
-                                  key={competency.traineeProcessId}
-                                  className="border-t border-slate-100"
-                                >
-                                  <td className="px-4 py-3 font-medium text-slate-900">
-                                    {competency.processName}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {competencyStatus(competency)}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {formatDate(
-                                      competency.competencySignOffDate,
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {formatDate(competency.refresherDueDate)}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {competency.refresherStatus ? (
-                                      <span
-                                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${refresherStatusClass(
-                                          competency.refresherStatus,
-                                        )}`}
-                                      >
-                                        {competency.refresherStatus}
-                                      </span>
-                                    ) : (
-                                      '-'
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
+                              {visibleCompetencies.map((competency) => {
+                                const isScheduling =
+                                  refresherScheduleTarget?.competency
+                                    .traineeProcessId ===
+                                  competency.traineeProcessId;
+
+                                return (
+                                  <Fragment key={competency.traineeProcessId}>
+                                    <tr className="border-t border-slate-100">
+                                      <td className="px-4 py-3 font-medium text-slate-900">
+                                        {competency.processName}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {competencyStatus(competency)}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {formatDate(
+                                          competency.competencySignOffDate,
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {formatDate(competency.refresherDueDate)}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {competency.refresherStatus ? (
+                                          <span
+                                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${refresherStatusClass(
+                                              competency.refresherStatus,
+                                            )}`}
+                                          >
+                                            {competency.refresherStatus}
+                                          </span>
+                                        ) : (
+                                          '-'
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        {isCompetentSignedOff(competency) ? (
+                                          <button
+                                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                                            type="button"
+                                            onClick={() =>
+                                              openScheduleRefresher(
+                                                colleague.name,
+                                                competency,
+                                              )
+                                            }
+                                          >
+                                            Schedule Refresher
+                                          </button>
+                                        ) : (
+                                          '-'
+                                        )}
+                                      </td>
+                                    </tr>
+                                    {isScheduling ? (
+                                      <tr className="border-t border-slate-100 bg-sky-50/40">
+                                        <td className="px-4 py-4" colSpan={6}>
+                                          <form
+                                            className="space-y-3"
+                                            onSubmit={saveScheduleRefresher}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-slate-900">
+                                                Schedule refresher
+                                              </p>
+                                              <p className="text-sm text-slate-600">
+                                                {
+                                                  refresherScheduleTarget
+                                                    .colleagueName
+                                                }{' '}
+                                                - {competency.processName}
+                                              </p>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <label className="space-y-2 text-sm">
+                                                <span>Refresher Due Date</span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="date"
+                                                  value={
+                                                    refresherScheduleForm.refresherDueDate
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherScheduleForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        refresherDueDate:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="space-y-2 text-sm">
+                                                <span>Assigned Assessor</span>
+                                                <select
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  value={
+                                                    refresherScheduleForm.assignedAssessor
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherScheduleForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        assignedAssessor:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                >
+                                                  <option value="">
+                                                    Select assessor
+                                                  </option>
+                                                  {trainingAssessors.map(
+                                                    (name) => (
+                                                      <option
+                                                        key={name}
+                                                        value={name}
+                                                      >
+                                                        {name}
+                                                      </option>
+                                                    ),
+                                                  )}
+                                                </select>
+                                              </label>
+                                            </div>
+                                            {scheduleError ? (
+                                              <p className="text-sm text-red-600">
+                                                {scheduleError}
+                                              </p>
+                                            ) : null}
+                                            <div className="flex flex-wrap gap-2">
+                                              <button
+                                                className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                                                disabled={savingSchedule}
+                                                type="submit"
+                                              >
+                                                {savingSchedule
+                                                  ? 'Saving...'
+                                                  : 'Save Refresher'}
+                                              </button>
+                                              <button
+                                                className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                                                disabled={savingSchedule}
+                                                type="button"
+                                                onClick={closeScheduleRefresher}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </form>
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                  </Fragment>
+                                );
+                              })}
                               {visibleCompetencies.length === 0 ? (
                                 <tr>
                                   <td
                                     className="px-4 py-6 text-sm text-slate-500"
-                                    colSpan={5}
+                                    colSpan={6}
                                   >
                                     No active competencies assigned.
                                   </td>
