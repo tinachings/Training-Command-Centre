@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Fragment, FormEvent, useEffect, useMemo, useState } from 'react';
 
 type RefresherRecord = {
   id: number;
@@ -33,6 +33,11 @@ type ScheduleForm = {
   assignedAssessor: string;
 };
 
+type CompletionForm = {
+  completedDate: string;
+  outcome: string;
+};
+
 type Person = {
   name: string;
   active: boolean;
@@ -45,8 +50,18 @@ type PeopleResponse = {
   people: Person[];
 };
 
+const completionOutcomes = [
+  'Completed',
+  'Further Training Required',
+  'Not Completed',
+];
+
 function formatDate(value: string | null) {
   return value ? value.slice(0, 10) : '';
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function validAssessor(value: string | null) {
@@ -78,9 +93,13 @@ export default function RefreshersPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [completionSaving, setCompletionSaving] = useState(false);
   const [error, setError] = useState('');
   const [scheduleError, setScheduleError] = useState('');
+  const [completionError, setCompletionError] = useState('');
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [completionTarget, setCompletionTarget] =
+    useState<RefresherRecord | null>(null);
   const [department, setDepartment] = useState('All');
   const [status, setStatus] = useState('All');
   const [trainee, setTrainee] = useState('All');
@@ -89,6 +108,10 @@ export default function RefreshersPage() {
     traineeProcessId: '',
     scheduledRefresherDate: '',
     assignedAssessor: '',
+  });
+  const [completionForm, setCompletionForm] = useState<CompletionForm>({
+    completedDate: todayInputValue(),
+    outcome: completionOutcomes[0],
   });
 
   async function loadRefreshers() {
@@ -228,6 +251,72 @@ export default function RefreshersPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openCompletionForm(item: RefresherRecord) {
+    setCompletionTarget(item);
+    setCompletionError('');
+    setCompletionForm({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+  }
+
+  function closeCompletionForm() {
+    setCompletionTarget(null);
+    setCompletionError('');
+    setCompletionForm({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+  }
+
+  async function saveCompletion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCompletionError('');
+
+    if (!completionTarget) {
+      setCompletionError('Select a refresher to complete.');
+      return;
+    }
+
+    if (!completionForm.completedDate || !completionForm.outcome) {
+      setCompletionError('Completed date and outcome are required.');
+      return;
+    }
+
+    setCompletionSaving(true);
+
+    try {
+      const response = await fetch(`/api/refreshers/${completionTarget.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          completedDate: completionForm.completedDate,
+          outcome: completionForm.outcome,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || 'Failed to complete refresher.');
+      }
+
+      await loadRefreshers();
+      closeCompletionForm();
+    } catch (caught) {
+      setCompletionError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to complete refresher.',
+      );
+    } finally {
+      setCompletionSaving(false);
     }
   }
 
@@ -467,34 +556,122 @@ export default function RefreshersPage() {
                 <th className="pb-3 text-left">Scheduled Refresher Date</th>
                 <th className="pb-3 text-left">Schedule Status</th>
                 <th className="pb-3 text-left">Assessor</th>
+                <th className="pb-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
-                  <td className="py-3">{item.traineeName}</td>
-                  <td className="py-3">{item.process}</td>
-                  <td className="py-3">
-                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    {formatDate(item.refresherDueDate)}
-                  </td>
-                  <td className="py-3">
-                    {item.scheduledRefresherDate
-                      ? formatDate(item.scheduledRefresherDate)
-                      : '-'}
-                  </td>
-                  <td className="py-3">
-                    {item.scheduleStatus?.trim() || 'Not Scheduled'}
-                  </td>
-                  <td className="py-3">
-                    {formatAssessor(item.assignedAssessor)}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((item) => {
+                const isCompleting = completionTarget?.id === item.id;
+                const scheduleStatus = item.scheduleStatus?.trim();
+                const canComplete =
+                  item.scheduledRefresherDate && scheduleStatus !== 'Completed';
+
+                return (
+                  <Fragment key={item.id}>
+                    <tr className="border-t border-slate-100">
+                      <td className="py-3">{item.traineeName}</td>
+                      <td className="py-3">{item.process}</td>
+                      <td className="py-3">
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        {formatDate(item.refresherDueDate)}
+                      </td>
+                      <td className="py-3">
+                        {item.scheduledRefresherDate
+                          ? formatDate(item.scheduledRefresherDate)
+                          : '-'}
+                      </td>
+                      <td className="py-3">
+                        {scheduleStatus || 'Not Scheduled'}
+                      </td>
+                      <td className="py-3">
+                        {formatAssessor(item.assignedAssessor)}
+                      </td>
+                      <td className="py-3">
+                        {canComplete ? (
+                          <button
+                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                            type="button"
+                            onClick={() => openCompletionForm(item)}
+                          >
+                            Complete Refresher
+                          </button>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                    {isCompleting ? (
+                      <tr className="border-t border-slate-100 bg-slate-50">
+                        <td className="py-4" colSpan={8}>
+                          <form
+                            className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]"
+                            onSubmit={saveCompletion}
+                          >
+                            <label className="space-y-2 text-sm">
+                              <span>Completed Date</span>
+                              <input
+                                className="w-full rounded-xl border border-slate-200 p-3"
+                                type="date"
+                                value={completionForm.completedDate}
+                                onChange={(event) =>
+                                  setCompletionForm((current) => ({
+                                    ...current,
+                                    completedDate: event.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                              <span>Outcome</span>
+                              <select
+                                className="w-full rounded-xl border border-slate-200 p-3"
+                                value={completionForm.outcome}
+                                onChange={(event) =>
+                                  setCompletionForm((current) => ({
+                                    ...current,
+                                    outcome: event.target.value,
+                                  }))
+                                }
+                              >
+                                {completionOutcomes.map((value) => (
+                                  <option key={value}>{value}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <div className="flex items-end">
+                              <button
+                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                                disabled={completionSaving}
+                                type="submit"
+                              >
+                                {completionSaving ? 'Saving...' : 'Save'}
+                              </button>
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                className="rounded-full border border-slate-200 px-4 py-2 text-sm"
+                                type="button"
+                                onClick={closeCompletionForm}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            {completionError ? (
+                              <p className="text-sm text-red-600 md:col-span-4">
+                                {completionError}
+                              </p>
+                            ) : null}
+                          </form>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { addMonths, refresherStatusForDueDate } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type RouteContext = {
@@ -116,6 +117,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     },
     select: {
       id: true,
+      traineeProcessId: true,
       refresherDueDate: true,
       status: true,
       completedDate: true,
@@ -127,6 +129,55 @@ export async function PATCH(request: Request, context: RouteContext) {
       { error: 'Refresher record not found.' },
       { status: 404 },
     );
+  }
+
+  if (body.completedDate !== undefined || body.outcome !== undefined) {
+    if (completedDate === null || completedDate === undefined) {
+      return NextResponse.json(
+        { error: 'Completed date is required.' },
+        { status: 400 },
+      );
+    }
+
+    if (!outcome) {
+      return NextResponse.json(
+        { error: 'Outcome is required.' },
+        { status: 400 },
+      );
+    }
+
+    const newDueDate = addMonths(completedDate, 12);
+    const complianceStatus = refresherStatusForDueDate(newDueDate);
+
+    const updated = await prisma.$transaction(async (transaction) => {
+      await transaction.traineeProcess.update({
+        where: {
+          id: current.traineeProcessId,
+        },
+        data: {
+          status: 'Competent',
+          stage: 'Competent',
+          competencySignOffDate: completedDate,
+        },
+      });
+
+      return transaction.refresherRecord.update({
+        where: {
+          id: current.id,
+        },
+        data: {
+          lastCompetencyDate: completedDate,
+          refresherDueDate: newDueDate,
+          status: complianceStatus,
+          completedDate,
+          outcome,
+          scheduleStatus: 'Completed',
+          ...(assignedAssessor !== undefined ? { assignedAssessor } : {}),
+        },
+      });
+    });
+
+    return NextResponse.json(updated);
   }
 
   const nextStatus = status ?? current.status;
