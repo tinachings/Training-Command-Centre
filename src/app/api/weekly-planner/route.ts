@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type PlannerItemResponse = {
@@ -431,7 +432,10 @@ export async function GET(request: Request) {
         process: refresher.traineeProcess.process.name || refresher.process,
         activityType: 'Refresher',
         owner: refresher.assignedAssessor,
-        status: refresher.status,
+        status: normalizeRefresherStatus(
+          refresher.status,
+          refresher.refresherDueDate,
+        ),
         actualDate: refresher.completedDate,
         deviationReason: null,
         followUpRequired: false,
