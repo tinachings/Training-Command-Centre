@@ -13,6 +13,7 @@ type Process = {
   name: string;
   departmentId: number;
   departmentName: string;
+  active: boolean;
 };
 
 type Role = {
@@ -43,6 +44,11 @@ type DepartmentEditForm = {
   active: boolean;
 };
 
+type ProcessEditForm = {
+  name: string;
+  active: boolean;
+};
+
 type SettingsData = {
   departments: Department[];
   processes: Process[];
@@ -67,12 +73,14 @@ export default function SettingsPage() {
   const [savingDepartment, setSavingDepartment] = useState(false);
   const [savingDepartmentEdit, setSavingDepartmentEdit] = useState(false);
   const [savingProcess, setSavingProcess] = useState(false);
+  const [savingProcessEdit, setSavingProcessEdit] = useState(false);
   const [savingPerson, setSavingPerson] = useState(false);
   const [savingPersonEdit, setSavingPersonEdit] = useState(false);
   const [error, setError] = useState('');
   const [departmentError, setDepartmentError] = useState('');
   const [departmentEditError, setDepartmentEditError] = useState('');
   const [processError, setProcessError] = useState('');
+  const [processEditError, setProcessEditError] = useState('');
   const [personError, setPersonError] = useState('');
   const [personEditError, setPersonEditError] = useState('');
   const [newDepartmentName, setNewDepartmentName] = useState('');
@@ -88,6 +96,11 @@ export default function SettingsPage() {
       name: '',
       active: true,
     });
+  const [editingProcessId, setEditingProcessId] = useState<number | null>(null);
+  const [processEditForm, setProcessEditForm] = useState<ProcessEditForm>({
+    name: '',
+    active: true,
+  });
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
   const [personEditForm, setPersonEditForm] = useState<PersonEditForm>({
     name: '',
@@ -392,6 +405,89 @@ export default function SettingsPage() {
       );
     } finally {
       setSavingProcess(false);
+    }
+  }
+
+  function startEditingProcess(process: Process) {
+    setEditingProcessId(process.id);
+    setProcessEditError('');
+    setProcessEditForm({
+      name: process.name,
+      active: process.active,
+    });
+  }
+
+  function cancelEditingProcess() {
+    setEditingProcessId(null);
+    setProcessEditError('');
+    setProcessEditForm({
+      name: '',
+      active: true,
+    });
+  }
+
+  async function saveProcessEdit(
+    event: FormEvent<HTMLFormElement>,
+    process: Process,
+  ) {
+    event.preventDefault();
+    setProcessEditError('');
+
+    const name = processEditForm.name.trim();
+    if (!name) {
+      setProcessEditError('Process name is required.');
+      return;
+    }
+
+    const duplicateProcess = data?.processes.find(
+      (item) =>
+        item.id !== process.id &&
+        item.departmentId === process.departmentId &&
+        item.name.toLowerCase() === name.toLowerCase(),
+    );
+
+    if (duplicateProcess) {
+      setProcessEditError('Process already exists for this department.');
+      return;
+    }
+
+    setSavingProcessEdit(true);
+
+    try {
+      const response = await fetch(`/api/processes/${process.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          active: processEditForm.active,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(result?.error || 'Failed to update process.');
+      }
+
+      const processes = await loadProcesses();
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              processes,
+            }
+          : current,
+      );
+      cancelEditingProcess();
+    } catch (caught) {
+      setProcessEditError(
+        caught instanceof Error ? caught.message : 'Failed to update process.',
+      );
+    } finally {
+      setSavingProcessEdit(false);
     }
   }
 
@@ -805,16 +901,108 @@ export default function SettingsPage() {
                     ) : null}
                   </h4>
                   {processes.length ? (
-                    <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                      {processes.map((process) => (
-                        <li
-                          key={process.id}
-                          className="border-t border-slate-100 pt-2 first:border-t-0 first:pt-0"
-                        >
-                          {process.name}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm text-slate-600">
+                        <thead className="text-slate-500">
+                          <tr>
+                            <th className="pb-2 text-left font-medium">
+                              Process
+                            </th>
+                            <th className="pb-2 text-left font-medium">
+                              Status
+                            </th>
+                            <th className="pb-2 text-left font-medium">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {processes.map((process) =>
+                            editingProcessId === process.id ? (
+                              <tr
+                                key={process.id}
+                                className="border-t border-slate-100"
+                              >
+                                <td className="py-2 pr-3 align-top">
+                                  <input
+                                    className="w-full rounded-xl border border-slate-200 p-2"
+                                    value={processEditForm.name}
+                                    onChange={(event) =>
+                                      setProcessEditForm((current) => ({
+                                        ...current,
+                                        name: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                  {processEditError ? (
+                                    <p className="mt-2 text-sm text-red-600">
+                                      {processEditError}
+                                    </p>
+                                  ) : null}
+                                </td>
+                                <td className="py-2 pr-3 align-top">
+                                  <select
+                                    className="rounded-xl border border-slate-200 p-2"
+                                    value={String(processEditForm.active)}
+                                    onChange={(event) =>
+                                      setProcessEditForm((current) => ({
+                                        ...current,
+                                        active: event.target.value === 'true',
+                                      }))
+                                    }
+                                  >
+                                    <option value="true">Active</option>
+                                    <option value="false">Inactive</option>
+                                  </select>
+                                </td>
+                                <td className="py-2 align-top">
+                                  <form
+                                    className="flex flex-wrap gap-2"
+                                    onSubmit={(event) =>
+                                      saveProcessEdit(event, process)
+                                    }
+                                  >
+                                    <button
+                                      className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
+                                      disabled={savingProcessEdit}
+                                      type="submit"
+                                    >
+                                      {savingProcessEdit ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                      className="rounded-full border border-slate-200 px-3 py-1 text-xs"
+                                      type="button"
+                                      onClick={cancelEditingProcess}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </form>
+                                </td>
+                              </tr>
+                            ) : (
+                              <tr
+                                key={process.id}
+                                className="border-t border-slate-100"
+                              >
+                                <td className="py-2 pr-3">{process.name}</td>
+                                <td className="py-2 pr-3">
+                                  {process.active ? 'Active' : 'Inactive'}
+                                </td>
+                                <td className="py-2">
+                                  <button
+                                    className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                                    type="button"
+                                    onClick={() => startEditingProcess(process)}
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-500">
                       No processes configured.

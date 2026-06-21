@@ -20,6 +20,7 @@ model Process {
   name             String
   departmentId     Int
   department       Department       @relation(fields: [departmentId], references: [id])
+  active           Boolean          @default(true)
   traineeProcesses TraineeProcess[]
   createdAt        DateTime         @default(now())
 

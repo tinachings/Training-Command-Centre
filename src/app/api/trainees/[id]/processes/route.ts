@@ -55,6 +55,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const databaseProcesses = await prisma.process.findMany({
     where: {
       departmentId: trainee.departmentId,
+      active: true,
     },
     select: {
       id: true,
@@ -121,6 +122,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (!process || process.departmentId !== trainee.departmentId) {
     return NextResponse.json(
       { error: 'Process not found for this trainee department.' },
+      { status: 400 },
+    );
+  }
+
+  if (!process.active) {
+    return NextResponse.json(
+      { error: 'Inactive processes cannot be assigned.' },
       { status: 400 },
     );
   }

@@ -30,6 +30,7 @@ export async function GET() {
       id: true,
       name: true,
       departmentId: true,
+      active: true,
       department: {
         select: {
           name: true,
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
         id: true,
         name: true,
         departmentId: true,
+        active: true,
         department: {
           select: {
             name: true,
@@ -98,6 +100,7 @@ export async function POST(request: Request) {
         id: process.id,
         name: process.name,
         departmentId: process.departmentId,
+        active: process.active,
         departmentName: process.department.name,
       },
       { status: 201 },
