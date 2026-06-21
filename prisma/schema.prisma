@@ -221,7 +221,9 @@ model RefresherRecord {
   process            String
   lastCompetencyDate DateTime?
   refresherDueDate   DateTime?
+  scheduledRefresherDate DateTime?
   status             String
+  scheduleStatus     String?
   daysUntilDue       Int?
   assignedAssessor   String?
   completedDate      DateTime?
@@ -229,6 +231,7 @@ model RefresherRecord {
   createdAt          DateTime       @default(now())
 
   @@index([refresherDueDate])
+  @@index([scheduledRefresherDate])
 }
 
 model FollowUpAction {

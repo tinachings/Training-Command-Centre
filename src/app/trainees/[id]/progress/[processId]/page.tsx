@@ -10,6 +10,7 @@ type ProcessAssignment = {
   nextAction: string | null;
   followUpFlag: string | null;
   readinessScore: number | null;
+  competencySignOffDate: string | null;
   process: {
     name: string;
   };
@@ -18,6 +19,19 @@ type ProcessAssignment = {
     name: string;
   };
 };
+
+function dateInputValue(value: string | null) {
+  return value ? value.slice(0, 10) : '';
+}
+
+function todayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
 
 export default function ProcessProgressPage() {
   const params = useParams<{ id: string; processId: string }>();
@@ -34,6 +48,9 @@ export default function ProcessProgressPage() {
   const [nextAction, setNextAction] = useState('');
   const [followUpFlag, setFollowUpFlag] = useState('NONE');
   const [readinessScore, setReadinessScore] = useState('0');
+  const [competencySignOffDate, setCompetencySignOffDate] = useState(
+    todayInputValue(),
+  );
   const [loading, setLoading] = useState(hasValidIds);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(
@@ -68,6 +85,9 @@ export default function ProcessProgressPage() {
         setNextAction(data.nextAction ?? '');
         setFollowUpFlag(data.followUpFlag ?? 'NONE');
         setReadinessScore(String(data.readinessScore ?? 0));
+        setCompetencySignOffDate(
+          dateInputValue(data.competencySignOffDate) || todayInputValue(),
+        );
       } catch (loadError) {
         if ((loadError as Error).name !== 'AbortError') {
           setError('Failed to load process.');
@@ -101,6 +121,7 @@ export default function ProcessProgressPage() {
             nextAction,
             followUpFlag,
             readinessScore: Number(readinessScore),
+            ...(stage === 'Competent' ? { competencySignOffDate } : {}),
           }),
         },
       );
@@ -169,7 +190,14 @@ export default function ProcessProgressPage() {
           <span>Stage</span>
           <select
             value={stage}
-            onChange={(event) => setStage(event.target.value)}
+            onChange={(event) => {
+              const nextStage = event.target.value;
+              setStage(nextStage);
+
+              if (nextStage === 'Competent' && !competencySignOffDate) {
+                setCompetencySignOffDate(todayInputValue());
+              }
+            }}
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
           >
             <option>Requested</option>
@@ -206,6 +234,19 @@ export default function ProcessProgressPage() {
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
           />
         </label>
+        {stage === 'Competent' ? (
+          <label className="space-y-2 text-sm">
+            <span>Competency Sign-off Date</span>
+            <input
+              type="date"
+              value={competencySignOffDate}
+              onChange={(event) =>
+                setCompetencySignOffDate(event.target.value)
+              }
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
+            />
+          </label>
+        ) : null}
         <label className="space-y-2 text-sm md:col-span-2">
           <span>Next Action</span>
           <textarea
