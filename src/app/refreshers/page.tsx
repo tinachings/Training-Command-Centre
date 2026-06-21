@@ -10,7 +10,9 @@ type RefresherRecord = {
   process: string;
   lastCompetencyDate: string | null;
   refresherDueDate: string | null;
+  scheduledRefresherDate: string | null;
   status: string;
+  scheduleStatus: string | null;
   daysUntilDue: number | null;
   assignedAssessor: string | null;
   completedDate: string | null;
@@ -27,9 +29,8 @@ type TrainingPipelineItem = {
 
 type ScheduleForm = {
   traineeProcessId: string;
-  refresherDueDate: string;
+  scheduledRefresherDate: string;
   assignedAssessor: string;
-  status: string;
 };
 
 type Person = {
@@ -43,13 +44,6 @@ type Person = {
 type PeopleResponse = {
   people: Person[];
 };
-
-const refresherStatuses = [
-  'Due This Month',
-  'Due Next Month',
-  'Not Due Yet',
-  'Overdue',
-];
 
 function formatDate(value: string | null) {
   return value ? value.slice(0, 10) : '';
@@ -93,9 +87,8 @@ export default function RefreshersPage() {
   const [trainingAssessors, setTrainingAssessors] = useState<string[]>([]);
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     traineeProcessId: '',
-    refresherDueDate: '',
+    scheduledRefresherDate: '',
     assignedAssessor: '',
-    status: 'Due This Month',
   });
 
   async function loadRefreshers() {
@@ -164,9 +157,8 @@ export default function RefreshersPage() {
   function resetScheduleForm() {
     setScheduleForm({
       traineeProcessId: '',
-      refresherDueDate: '',
+      scheduledRefresherDate: '',
       assignedAssessor: '',
-      status: 'Due This Month',
     });
     setScheduleError('');
   }
@@ -199,8 +191,8 @@ export default function RefreshersPage() {
     event.preventDefault();
     setScheduleError('');
 
-    if (!scheduleForm.traineeProcessId || !scheduleForm.refresherDueDate) {
-      setScheduleError('Colleague process and due date are required.');
+    if (!scheduleForm.traineeProcessId || !scheduleForm.scheduledRefresherDate) {
+      setScheduleError('Colleague process and scheduled date are required.');
       return;
     }
 
@@ -214,9 +206,8 @@ export default function RefreshersPage() {
         },
         body: JSON.stringify({
           traineeProcessId: Number(scheduleForm.traineeProcessId),
-          refresherDueDate: scheduleForm.refresherDueDate,
+          scheduledRefresherDate: scheduleForm.scheduledRefresherDate,
           assignedAssessor: scheduleForm.assignedAssessor || null,
-          status: scheduleForm.status,
         }),
       });
 
@@ -312,7 +303,7 @@ export default function RefreshersPage() {
             <div>
               <h3 className="text-lg font-semibold">Schedule Refresher</h3>
             </div>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-2 text-sm">
                 <span>Colleague / Process</span>
                 <select
@@ -339,15 +330,15 @@ export default function RefreshersPage() {
                 </select>
               </label>
               <label className="space-y-2 text-sm">
-                <span>Refresher Due Date</span>
+                <span>Scheduled Refresher Date</span>
                 <input
                   className="w-full rounded-xl border border-slate-200 p-3"
                   type="date"
-                  value={scheduleForm.refresherDueDate}
+                  value={scheduleForm.scheduledRefresherDate}
                   onChange={(event) =>
                     setScheduleForm((current) => ({
                       ...current,
-                      refresherDueDate: event.target.value,
+                      scheduledRefresherDate: event.target.value,
                     }))
                   }
                 />
@@ -375,23 +366,6 @@ export default function RefreshersPage() {
                       No options configured
                     </option>
                   )}
-                </select>
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>Status</span>
-                <select
-                  className="w-full rounded-xl border border-slate-200 p-3"
-                  value={scheduleForm.status}
-                  onChange={(event) =>
-                    setScheduleForm((current) => ({
-                      ...current,
-                      status: event.target.value,
-                    }))
-                  }
-                >
-                  {refresherStatuses.map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
                 </select>
               </label>
             </div>
@@ -488,8 +462,10 @@ export default function RefreshersPage() {
               <tr>
                 <th className="pb-3 text-left">Colleague</th>
                 <th className="pb-3 text-left">Process</th>
-                <th className="pb-3 text-left">Status</th>
-                <th className="pb-3 text-left">Due Date</th>
+                <th className="pb-3 text-left">Compliance Status</th>
+                <th className="pb-3 text-left">Compliance Due Date</th>
+                <th className="pb-3 text-left">Scheduled Refresher Date</th>
+                <th className="pb-3 text-left">Schedule Status</th>
                 <th className="pb-3 text-left">Assessor</th>
               </tr>
             </thead>
@@ -505,6 +481,14 @@ export default function RefreshersPage() {
                   </td>
                   <td className="py-3">
                     {formatDate(item.refresherDueDate)}
+                  </td>
+                  <td className="py-3">
+                    {item.scheduledRefresherDate
+                      ? formatDate(item.scheduledRefresherDate)
+                      : '-'}
+                  </td>
+                  <td className="py-3">
+                    {item.scheduleStatus?.trim() || 'Not Scheduled'}
                   </td>
                   <td className="py-3">
                     {formatAssessor(item.assignedAssessor)}

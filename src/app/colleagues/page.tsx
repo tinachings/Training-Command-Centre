@@ -15,7 +15,9 @@ type ColleagueCompetency = {
   scheduledPreAssessmentDate: string | null;
   scheduledAssessmentDate: string | null;
   refresherDueDate: string | null;
+  scheduledRefresherDate: string | null;
   refresherStatus: string | null;
+  scheduleStatus: string | null;
 };
 
 type ColleagueListItem = {
@@ -55,7 +57,7 @@ type RefresherScheduleTarget = {
 };
 
 type RefresherScheduleForm = {
-  refresherDueDate: string;
+  scheduledRefresherDate: string;
   assignedAssessor: string;
 };
 
@@ -190,7 +192,7 @@ export default function ColleaguesPage() {
     useState<RefresherScheduleTarget | null>(null);
   const [refresherScheduleForm, setRefresherScheduleForm] =
     useState<RefresherScheduleForm>({
-      refresherDueDate: '',
+      scheduledRefresherDate: '',
       assignedAssessor: '',
     });
   const [assessmentScheduleTarget, setAssessmentScheduleTarget] =
@@ -318,7 +320,9 @@ export default function ColleaguesPage() {
     setAssessmentScheduleTarget(null);
     setRefresherScheduleTarget({ colleagueName, competency });
     setRefresherScheduleForm({
-      refresherDueDate: dateInputValue(competency.refresherDueDate),
+      scheduledRefresherDate: dateInputValue(
+        competency.scheduledRefresherDate,
+      ),
       assignedAssessor: defaultAssessor(competency),
     });
     setScheduleError('');
@@ -327,7 +331,7 @@ export default function ColleaguesPage() {
   function closeScheduleRefresher() {
     setRefresherScheduleTarget(null);
     setRefresherScheduleForm({
-      refresherDueDate: '',
+      scheduledRefresherDate: '',
       assignedAssessor: '',
     });
     setScheduleError('');
@@ -378,8 +382,8 @@ export default function ColleaguesPage() {
 
     setScheduleError('');
 
-    if (!refresherScheduleForm.refresherDueDate) {
-      setScheduleError('Refresher due date is required.');
+    if (!refresherScheduleForm.scheduledRefresherDate) {
+      setScheduleError('Scheduled refresher date is required.');
       return;
     }
 
@@ -394,7 +398,8 @@ export default function ColleaguesPage() {
         body: JSON.stringify({
           traineeProcessId:
             refresherScheduleTarget.competency.traineeProcessId,
-          refresherDueDate: refresherScheduleForm.refresherDueDate,
+          scheduledRefresherDate:
+            refresherScheduleForm.scheduledRefresherDate,
           assignedAssessor:
             refresherScheduleForm.assignedAssessor || null,
         }),
@@ -822,18 +827,20 @@ export default function ColleaguesPage() {
                                             </div>
                                             <div className="grid gap-3 md:grid-cols-2">
                                               <label className="space-y-2 text-sm">
-                                                <span>Refresher Due Date</span>
+                                                <span>
+                                                  Scheduled Refresher Date
+                                                </span>
                                                 <input
                                                   className="w-full rounded-xl border border-slate-200 p-3"
                                                   type="date"
                                                   value={
-                                                    refresherScheduleForm.refresherDueDate
+                                                    refresherScheduleForm.scheduledRefresherDate
                                                   }
                                                   onChange={(event) =>
                                                     setRefresherScheduleForm(
                                                       (current) => ({
                                                         ...current,
-                                                        refresherDueDate:
+                                                        scheduledRefresherDate:
                                                           event.target.value,
                                                       }),
                                                     )

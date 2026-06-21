@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma';
 type ColleagueRefresherRecord = {
   id: number;
   refresherDueDate: Date | null;
+  scheduledRefresherDate: Date | null;
   status: string;
+  scheduleStatus: string | null;
 };
 
 type ColleagueProcess = {
@@ -103,7 +105,9 @@ export async function GET() {
             select: {
               id: true,
               refresherDueDate: true,
+              scheduledRefresherDate: true,
               status: true,
+              scheduleStatus: true,
             },
           },
         },
@@ -144,6 +148,11 @@ export async function GET() {
           refresherDueDate: signedOffCompetent
             ? dateValue(process.refresherRecord?.refresherDueDate ?? null)
             : null,
+          scheduledRefresherDate: signedOffCompetent
+            ? dateValue(
+                process.refresherRecord?.scheduledRefresherDate ?? null,
+              )
+            : null,
           refresherStatus:
             signedOffCompetent && process.refresherRecord
               ? normalizeRefresherStatus(
@@ -151,6 +160,9 @@ export async function GET() {
                   process.refresherRecord.refresherDueDate,
                 )
               : null,
+          scheduleStatus: signedOffCompetent
+            ? process.refresherRecord?.scheduleStatus ?? null
+            : null,
         };
       }),
     })),

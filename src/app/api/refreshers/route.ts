@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  addMonths,
   normalizeRefresherStatus,
   refresherStatusForDueDate,
 } from '@/lib/competency';
@@ -8,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 type RefresherBody = {
   traineeProcessId?: unknown;
   refresherDueDate?: unknown;
+  scheduledRefresherDate?: unknown;
   assignedAssessor?: unknown;
   status?: unknown;
 };
@@ -104,8 +106,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = (await request.json()) as RefresherBody;
   const traineeProcessId = parseId(body.traineeProcessId);
-  const refresherDueDate = parseOptionalDate(body.refresherDueDate);
-  const requestedStatus = String(body.status ?? '').trim();
+  const scheduledDateInput =
+    body.scheduledRefresherDate !== undefined
+      ? body.scheduledRefresherDate
+      : body.refresherDueDate;
+  const scheduledRefresherDate = parseOptionalDate(scheduledDateInput);
 
   if (!traineeProcessId) {
     return NextResponse.json(
@@ -114,23 +119,16 @@ export async function POST(request: Request) {
     );
   }
 
-  if (refresherDueDate === undefined) {
+  if (scheduledRefresherDate === undefined) {
     return NextResponse.json(
-      { error: 'Refresher due date is invalid.' },
+      { error: 'Scheduled refresher date is invalid.' },
       { status: 400 },
     );
   }
 
-  if (refresherDueDate === null) {
+  if (scheduledRefresherDate === null) {
     return NextResponse.json(
-      { error: 'Refresher due date is required.' },
-      { status: 400 },
-    );
-  }
-
-  if (requestedStatus === 'Completed') {
-    return NextResponse.json(
-      { error: 'Completed date is required when status is Completed.' },
+      { error: 'Scheduled refresher date is required.' },
       { status: 400 },
     );
   }
@@ -194,16 +192,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const refresherDueDate = addMonths(assignment.competencySignOffDate, 12);
   const status = refresherStatusForDueDate(refresherDueDate);
+  const assignedAssessor = normalizeAssessor(body.assignedAssessor);
 
   const refresher = await prisma.refresherRecord.upsert({
     where: {
       traineeProcessId: assignment.id,
     },
     update: {
-      refresherDueDate,
-      assignedAssessor: normalizeAssessor(body.assignedAssessor),
-      status,
+      scheduledRefresherDate,
+      assignedAssessor,
+      scheduleStatus: 'Scheduled',
     },
     create: {
       traineeProcessId: assignment.id,
@@ -212,8 +212,10 @@ export async function POST(request: Request) {
       process: assignment.process.name,
       lastCompetencyDate: assignment.competencySignOffDate,
       refresherDueDate,
-      assignedAssessor: normalizeAssessor(body.assignedAssessor),
+      scheduledRefresherDate,
+      assignedAssessor,
       status,
+      scheduleStatus: 'Scheduled',
     },
   });
 

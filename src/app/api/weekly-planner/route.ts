@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
 type PlannerItemResponse = {
@@ -43,7 +42,9 @@ type RefresherPlanningRecord = {
   traineeName: string;
   process: string;
   refresherDueDate: Date | null;
+  scheduledRefresherDate: Date | null;
   status: string;
+  scheduleStatus: string | null;
   assignedAssessor: string | null;
   completedDate: Date | null;
   traineeProcess: {
@@ -214,7 +215,7 @@ export async function GET(request: Request) {
     }),
     prisma.refresherRecord.findMany({
       where: {
-        refresherDueDate: {
+        scheduledRefresherDate: {
           gte: weekBeginning,
           lt: weekEnd,
         },
@@ -234,7 +235,9 @@ export async function GET(request: Request) {
         traineeName: true,
         process: true,
         refresherDueDate: true,
+        scheduledRefresherDate: true,
         status: true,
+        scheduleStatus: true,
         assignedAssessor: true,
         completedDate: true,
         traineeProcess: {
@@ -258,7 +261,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: {
-        refresherDueDate: 'asc',
+        scheduledRefresherDate: 'asc',
       },
     }),
     prisma.traineeProcess.findMany({
@@ -402,28 +405,38 @@ export async function GET(request: Request) {
     .filter(
       (
         refresher: RefresherPlanningRecord,
-      ): refresher is RefresherPlanningRecord & { refresherDueDate: Date } =>
-        refresher.refresherDueDate !== null,
+      ): refresher is RefresherPlanningRecord & {
+        scheduledRefresherDate: Date;
+      } => refresher.scheduledRefresherDate !== null,
     )
-    .filter((refresher: RefresherPlanningRecord & { refresherDueDate: Date }) => {
-      const traineeName =
-        refresher.traineeProcess.trainee.name || refresher.traineeName;
-      const processName = refresher.traineeProcess.process.name || refresher.process;
-      const key = plannedItemKey(
-        traineeName,
-        processName,
-        refresher.refresherDueDate,
-      );
+    .filter(
+      (
+        refresher: RefresherPlanningRecord & {
+          scheduledRefresherDate: Date;
+        },
+      ) => {
+        const traineeName =
+          refresher.traineeProcess.trainee.name || refresher.traineeName;
+        const processName =
+          refresher.traineeProcess.process.name || refresher.process;
+        const key = plannedItemKey(
+          traineeName,
+          processName,
+          refresher.scheduledRefresherDate,
+        );
 
-      return !existingRefresherKeys.has(key);
-    })
+        return !existingRefresherKeys.has(key);
+      },
+    )
     .map(
       (
-        refresher: RefresherPlanningRecord & { refresherDueDate: Date },
+        refresher: RefresherPlanningRecord & {
+          scheduledRefresherDate: Date;
+        },
       ): PlannerItemResponse => ({
         id: -(1000000 + refresher.id),
         weekCommencing: weekBeginning,
-        plannedDate: refresher.refresherDueDate,
+        plannedDate: refresher.scheduledRefresherDate,
         department:
           refresher.traineeProcess.trainee.department.name ||
           refresher.department,
@@ -432,10 +445,7 @@ export async function GET(request: Request) {
         process: refresher.traineeProcess.process.name || refresher.process,
         activityType: 'Refresher',
         owner: refresher.assignedAssessor,
-        status: normalizeRefresherStatus(
-          refresher.status,
-          refresher.refresherDueDate,
-        ),
+        status: refresher.scheduleStatus ?? 'Scheduled',
         actualDate: refresher.completedDate,
         deviationReason: null,
         followUpRequired: false,
