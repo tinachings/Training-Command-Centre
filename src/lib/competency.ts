@@ -77,6 +77,18 @@ export function normalizeRefresherStatus(
   return refresherStatusForDueDate(refresherDueDate, today);
 }
 
+export function isCompetentProcess(process: {
+  stage: string;
+  status: string;
+  assessmentOutcome: string | null;
+}) {
+  return (
+    process.status === 'Competent' ||
+    process.stage === 'Competent' ||
+    process.assessmentOutcome === 'Competent'
+  );
+}
+
 export async function upsertCompetencyRefresher(
   transaction: PrismaTransactionClient,
   input: CompetencyRefresherInput,

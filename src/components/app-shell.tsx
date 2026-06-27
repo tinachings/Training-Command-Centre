@@ -1,8 +1,12 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const navItems = [
   ['Command Centre Dashboard', '/'],
   ['Competency Dashboard', '/competency-dashboard'],
+  ['Production Matrix', '/production-matrix'],
   ['Daily Control', '/daily-control'],
   ['Colleagues', '/colleagues'],
   ['Trainees', '/trainees'],
@@ -19,6 +23,8 @@ const navItems = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   return (
     <div className="min-h-screen text-slate-900">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-slate-200 bg-slate-950 text-white lg:flex lg:flex-col">
@@ -27,9 +33,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <h2 className="mt-2 text-xl font-semibold">Manufacturing Training MVP</h2>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-4 text-sm">
-          {navItems.map(([label, href]) => (
-            <Link key={href} href={href} className="block rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 hover:border-sky-400 hover:bg-slate-800">{label}</Link>
-          ))}
+          {navItems.map(([label, href]) => {
+            const active =
+              href === '/' ? pathname === href : pathname.startsWith(href);
+
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`block rounded-xl border px-4 py-3 hover:border-sky-400 hover:bg-slate-800 ${
+                  active
+                    ? 'border-sky-400 bg-slate-800'
+                    : 'border-slate-800 bg-slate-900/80'
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="border-t border-slate-800 p-4 text-xs text-slate-300">Version 1 • SQLite • No authentication</div>
       </aside>
