@@ -26,6 +26,14 @@ const supportedActivityTypes = [
   'Refresher',
 ];
 
+type GroupedRefresherDate = {
+  dateKey: string;
+  colleagues: {
+    traineeName: string;
+    items: WeeklyPlannerItem[];
+  }[];
+};
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -50,6 +58,37 @@ function getMonday(date: Date) {
   monday.setHours(0, 0, 0, 0);
 
   return monday;
+}
+
+function groupRefresherPlanningItems(items: WeeklyPlannerItem[]) {
+  const dateGroups = new Map<
+    string,
+    Map<string, WeeklyPlannerItem[]>
+  >();
+
+  items.forEach((item) => {
+    const dateKey = item.plannedDate.slice(0, 10);
+    const colleagueGroups = dateGroups.get(dateKey) ?? new Map();
+    const colleagueItems = colleagueGroups.get(item.traineeName) ?? [];
+
+    colleagueItems.push(item);
+    colleagueGroups.set(item.traineeName, colleagueItems);
+    dateGroups.set(dateKey, colleagueGroups);
+  });
+
+  return Array.from(dateGroups.entries()).map(
+    ([dateKey, colleagueGroups]): GroupedRefresherDate => ({
+      dateKey,
+      colleagues: Array.from(colleagueGroups.entries()).map(
+        ([traineeName, colleagueItems]) => ({
+          traineeName,
+          items: [...colleagueItems].sort((left, right) =>
+            left.process.localeCompare(right.process),
+          ),
+        }),
+      ),
+    }),
+  );
 }
 
 export default function WeeklyPlannerPage() {
@@ -223,26 +262,57 @@ export default function WeeklyPlannerPage() {
                   {group.activity}
                 </h4>
                 {group.items.length ? (
-                  <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                    {group.items.map((item) => (
-                      <li
-                        key={item.id}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2"
-                      >
-                        <span className="font-medium text-slate-900">
-                          {formatDate(item.plannedDate)}
-                        </span>
-                        <span className="text-slate-500">
-                          {' '}
-                          &ndash;{' '}
-                          {item.traineeName}
-                          {' '}
-                          &ndash;{' '}
-                          {item.process}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  group.activity === 'Refresher' ? (
+                    <div className="mt-2 space-y-2 text-sm text-slate-600">
+                      {groupRefresherPlanningItems(group.items).map(
+                        (dateGroup) => (
+                          <div
+                            key={dateGroup.dateKey}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5"
+                          >
+                            <p className="font-medium text-slate-900">
+                              {formatDate(dateGroup.dateKey)}
+                            </p>
+                            <div className="mt-1.5 space-y-2">
+                              {dateGroup.colleagues.map((colleagueGroup) => (
+                                <div key={colleagueGroup.traineeName}>
+                                  <p className="font-bold text-slate-800">
+                                    {colleagueGroup.traineeName}
+                                  </p>
+                                  <ul className="mt-0.5 list-disc space-y-0.5 pl-5">
+                                    {colleagueGroup.items.map((item) => (
+                                      <li key={item.id}>{item.process}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  ) : (
+                    <ul className="mt-2 space-y-2 text-sm text-slate-600">
+                      {group.items.map((item) => (
+                        <li
+                          key={item.id}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <span className="font-medium text-slate-900">
+                            {formatDate(item.plannedDate)}
+                          </span>
+                          <span className="text-slate-500">
+                            {' '}
+                            &ndash;{' '}
+                            {item.traineeName}
+                            {' '}
+                            &ndash;{' '}
+                            {item.process}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
                 ) : (
                   <p className="mt-2 text-sm text-slate-500">
                     No planned items.
