@@ -201,13 +201,13 @@ export default function TraineesPage() {
         <table className="min-w-full text-sm">
           <thead className="text-slate-500">
             <tr>
-              <th className="pb-3 text-left">Colleague Name</th>
-              <th className="pb-3 text-left">Department</th>
+              <th className="pb-3 text-center">Colleague Name</th>
+              <th className="pb-3 text-center">Department</th>
               <th className="pb-3 text-left">Team Leader</th>
               <th className="pb-3 text-left">Shift Leader</th>
               <th className="pb-3 text-left">Shift</th>
-              <th className="pb-3 text-left">Active Training</th>
-              <th className="pb-3 text-left">Competent Processes</th>
+              <th className="pb-3 text-center">Active Training</th>
+              <th className="pb-3 text-center">Competent Processes</th>
               <th className="pb-3 text-left">Current Status</th>
               <th className="pb-3 text-left">Follow-Up Required</th>
               <th className="pb-3 text-left">Actions</th>
@@ -219,15 +219,21 @@ export default function TraineesPage() {
                 key={trainee.id}
                 className="border-t border-slate-100 align-top"
               >
-                <td className="py-3 font-medium text-slate-900">
+                <td className="py-3 text-center font-medium text-slate-900">
                   {trainee.name}
                 </td>
-                <td className="py-3">{trainee.department.name}</td>
+                <td className="py-3 text-center">
+                  {trainee.department.name}
+                </td>
                 <td className="py-3">{trainee.teamLeader || '-'}</td>
                 <td className="py-3">{trainee.shiftLeader || '-'}</td>
                 <td className="py-3">{trainee.shift || '-'}</td>
-                <td className="py-3">{trainee.activeProcessCount}</td>
-                <td className="py-3">{trainee.competentProcessCount}</td>
+                <td className="py-3 text-center">
+                  {trainee.activeProcessCount}
+                </td>
+                <td className="py-3 text-center">
+                  {trainee.competentProcessCount}
+                </td>
                 <td className="py-3">
                   {trainee.archived ? 'Archived' : 'Active'}
                 </td>

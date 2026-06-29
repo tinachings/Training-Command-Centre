@@ -380,9 +380,9 @@ export default function TrainingPipelinePage() {
           <table className="min-w-full text-sm">
             <thead className="text-slate-500">
               <tr>
-                <th className="pb-3 text-left">Trainee</th>
-                <th className="pb-3 text-left">Process</th>
-                <th className="pb-3 text-left">Dept</th>
+                <th className="pb-3 text-center">Trainee</th>
+                <th className="pb-3 text-center">Process</th>
+                <th className="pb-3 text-center">Dept</th>
                 <th className="pb-3 text-left">Stage</th>
                 <th className="pb-3 text-left">Readiness</th>
                 <th className="pb-3 text-left">Follow-Up</th>
@@ -396,9 +396,9 @@ export default function TrainingPipelinePage() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.traineeProcessId} className="border-t border-slate-100">
-                  <td className="py-3">{item.traineeName}</td>
-                  <td className="py-3">{item.processName}</td>
-                  <td className="py-3">{item.departmentName}</td>
+                  <td className="py-3 text-center">{item.traineeName}</td>
+                  <td className="py-3 text-center">{item.processName}</td>
+                  <td className="py-3 text-center">{item.departmentName}</td>
                   <td className="py-3">
                     <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700">
                       {item.stage}
