@@ -81,6 +81,54 @@ type ScheduledAssessmentAssignment = {
   };
 };
 
+type ReviewStatus = 'Completed' | 'Deferred' | 'Not Completed' | 'Carry Over';
+
+type ReviewBody = {
+  id?: unknown;
+  status?: unknown;
+  actualDate?: unknown;
+  deviationReason?: unknown;
+  followUpRequired?: unknown;
+  followUpDate?: unknown;
+  weekCommencing?: unknown;
+  plannedDate?: unknown;
+  department?: unknown;
+  traineeName?: unknown;
+  process?: unknown;
+  activityType?: unknown;
+  owner?: unknown;
+  traineeProcessId?: unknown;
+};
+
+type GeneratedPlannerSource = {
+  weekCommencing: Date;
+  plannedDate: Date;
+  department: string;
+  traineeName: string;
+  process: string;
+  activityType: string;
+  owner: string | null;
+  traineeProcessId: number | null;
+};
+
+type PrismaTransactionClient = Omit<
+  typeof prisma,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+const reviewStatuses = new Set<ReviewStatus>([
+  'Completed',
+  'Deferred',
+  'Not Completed',
+  'Carry Over',
+]);
+
+function parsePlannerItemId(value: unknown) {
+  const id = Number(value);
+
+  return Number.isInteger(id) && id !== 0 ? id : null;
+}
+
 function parseWeekBeginning(value: string | null) {
   if (!value) {
     return null;
@@ -96,6 +144,105 @@ function parseWeekBeginning(value: string | null) {
   date.setHours(0, 0, 0, 0);
 
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseDateValue(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const date = new Date(String(value));
+  date.setHours(0, 0, 0, 0);
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseRequiredDate(value: unknown) {
+  const date = parseDateValue(value);
+
+  return date instanceof Date ? date : null;
+}
+
+function todayDate() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  return date;
+}
+
+function optionalText(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const text = String(value ?? '').trim();
+
+  return text || null;
+}
+
+function requiredText(value: unknown) {
+  const text = String(value ?? '').trim();
+
+  return text || null;
+}
+
+function optionalBoolean(value: unknown) {
+  return value === undefined ? undefined : value === true;
+}
+
+function parseOptionalPositiveId(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const id = Number(value);
+
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+
+  return nextDate;
+}
+
+function parseGeneratedPlannerSource(
+  body: ReviewBody,
+  traineeProcessId: number | null,
+) {
+  const weekCommencing = parseRequiredDate(body.weekCommencing);
+  const plannedDate = parseRequiredDate(body.plannedDate);
+  const department = requiredText(body.department);
+  const traineeName = requiredText(body.traineeName);
+  const process = requiredText(body.process);
+  const activityType = requiredText(body.activityType);
+
+  if (
+    !weekCommencing ||
+    !plannedDate ||
+    !department ||
+    !traineeName ||
+    !process ||
+    !activityType
+  ) {
+    return null;
+  }
+
+  return {
+    weekCommencing,
+    plannedDate,
+    department,
+    traineeName,
+    process,
+    activityType,
+    owner: optionalText(body.owner) ?? null,
+    traineeProcessId,
+  };
 }
 
 export async function GET(request: Request) {
@@ -562,4 +709,172 @@ export async function GET(request: Request) {
   );
 
   return NextResponse.json(combinedItems);
+}
+
+export async function PATCH(request: Request) {
+  const body = (await request.json()) as ReviewBody;
+  const id = parsePlannerItemId(body.id);
+  const status = String(body.status ?? '').trim() as ReviewStatus;
+
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Planner item id is required.' },
+      { status: 400 },
+    );
+  }
+
+  if (!reviewStatuses.has(status)) {
+    return NextResponse.json(
+      { error: 'Planner item review status is invalid.' },
+      { status: 400 },
+    );
+  }
+
+  const actualDate = parseDateValue(body.actualDate);
+  const followUpDate = parseDateValue(body.followUpDate);
+
+  if (actualDate === undefined && body.actualDate !== undefined) {
+    return NextResponse.json(
+      { error: 'Actual date is invalid.' },
+      { status: 400 },
+    );
+  }
+
+  if (followUpDate === undefined && body.followUpDate !== undefined) {
+    return NextResponse.json(
+      { error: 'Follow-up date is invalid.' },
+      { status: 400 },
+    );
+  }
+
+  const traineeProcessId = parseOptionalPositiveId(body.traineeProcessId);
+
+  if (traineeProcessId === undefined) {
+    return NextResponse.json(
+      { error: 'Trainee process id is invalid.' },
+      { status: 400 },
+    );
+  }
+
+  const deviationReason = optionalText(body.deviationReason);
+  const followUpRequired = optionalBoolean(body.followUpRequired);
+  const reviewedActualDate =
+    status === 'Completed' ? actualDate ?? todayDate() : actualDate;
+  const generatedSource =
+    id < 0 ? parseGeneratedPlannerSource(body, traineeProcessId) : null;
+
+  if (id < 0 && !generatedSource) {
+    return NextResponse.json(
+      { error: 'Generated planner item source fields are required.' },
+      { status: 400 },
+    );
+  }
+
+  const reviewData = {
+    status,
+    ...(reviewedActualDate !== undefined
+      ? { actualDate: reviewedActualDate }
+      : {}),
+    ...(deviationReason !== undefined ? { deviationReason } : {}),
+    ...(followUpRequired !== undefined ? { followUpRequired } : {}),
+    ...(followUpDate !== undefined ? { followUpDate } : {}),
+  };
+
+  const reviewedItem = await prisma.$transaction(async (transaction) => {
+    const plannerItem =
+      id > 0
+        ? await transaction.weeklyPlannerItem.findUnique({
+            where: {
+              id,
+            },
+          })
+        : null;
+
+    if (id > 0 && !plannerItem) {
+      return null;
+    }
+
+    const itemToReview =
+      plannerItem ??
+      (await createGeneratedPlannerItem(transaction, generatedSource));
+
+    const updatedItem = await transaction.weeklyPlannerItem.update({
+      where: {
+        id: itemToReview.id,
+      },
+      data: reviewData,
+    });
+
+    if (status === 'Carry Over') {
+      const nextWeekCommencing = addDays(updatedItem.weekCommencing, 7);
+      const nextPlannedDate = addDays(updatedItem.plannedDate, 7);
+
+      const existingCarryOver = await transaction.weeklyPlannerItem.findFirst({
+        where: {
+          traineeName: updatedItem.traineeName,
+          process: updatedItem.process,
+          activityType: updatedItem.activityType,
+          plannedDate: nextPlannedDate,
+        },
+      });
+
+      if (!existingCarryOver) {
+        await transaction.weeklyPlannerItem.create({
+          data: {
+            weekCommencing: nextWeekCommencing,
+            plannedDate: nextPlannedDate,
+            department: updatedItem.department,
+            traineeName: updatedItem.traineeName,
+            process: updatedItem.process,
+            activityType: updatedItem.activityType,
+            owner: updatedItem.owner,
+            status: 'Planned',
+            actualDate: null,
+            deviationReason: null,
+            followUpRequired: false,
+            followUpDate: null,
+            traineeProcessId: updatedItem.traineeProcessId,
+          },
+        });
+      }
+    }
+
+    return updatedItem;
+  });
+
+  if (!reviewedItem) {
+    return NextResponse.json(
+      { error: 'Planner item not found.' },
+      { status: 404 },
+    );
+  }
+
+  return NextResponse.json(reviewedItem);
+}
+
+async function createGeneratedPlannerItem(
+  transaction: PrismaTransactionClient,
+  source: GeneratedPlannerSource | null,
+) {
+  if (!source) {
+    throw new Error('Generated planner item source fields are required.');
+  }
+
+  return transaction.weeklyPlannerItem.create({
+    data: {
+      weekCommencing: source.weekCommencing,
+      plannedDate: source.plannedDate,
+      department: source.department,
+      traineeName: source.traineeName,
+      process: source.process,
+      activityType: source.activityType,
+      owner: source.owner,
+      status: 'Planned',
+      actualDate: null,
+      deviationReason: null,
+      followUpRequired: false,
+      followUpDate: null,
+      traineeProcessId: source.traineeProcessId,
+    },
+  });
 }

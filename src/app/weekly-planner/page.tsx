@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type WeeklyPlannerItem = {
   id: number;
@@ -34,12 +34,37 @@ type GroupedRefresherDate = {
   }[];
 };
 
+type FridayReviewGroup = {
+  activity: string;
+  dates: {
+    dateKey: string;
+    colleagues: {
+      traineeName: string;
+      items: WeeklyPlannerItem[];
+    }[];
+  }[];
+};
+
 type SummaryStatus =
   | 'planned'
   | 'completed'
   | 'deferred'
   | 'notCompleted'
   | 'carryOver';
+
+type ReviewStatus = 'Completed' | 'Deferred' | 'Not Completed' | 'Carry Over';
+
+type PendingReview = {
+  status: ReviewStatus | '';
+  deviationReason: string;
+};
+
+const reviewStatuses: ReviewStatus[] = [
+  'Completed',
+  'Deferred',
+  'Not Completed',
+  'Carry Over',
+];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -122,10 +147,69 @@ function groupRefresherPlanningItems(items: WeeklyPlannerItem[]) {
   );
 }
 
+function groupFridayReviewItems(items: WeeklyPlannerItem[]) {
+  const activityGroups = new Map<
+    string,
+    Map<string, Map<string, WeeklyPlannerItem[]>>
+  >();
+
+  items.forEach((item) => {
+    const dateKey = item.plannedDate.slice(0, 10);
+    const dateGroups =
+      activityGroups.get(item.activityType) ??
+      new Map<string, Map<string, WeeklyPlannerItem[]>>();
+    const colleagueGroups =
+      dateGroups.get(dateKey) ?? new Map<string, WeeklyPlannerItem[]>();
+    const colleagueItems = colleagueGroups.get(item.traineeName) ?? [];
+
+    colleagueItems.push(item);
+    colleagueGroups.set(item.traineeName, colleagueItems);
+    dateGroups.set(dateKey, colleagueGroups);
+    activityGroups.set(item.activityType, dateGroups);
+  });
+
+  const activityOrder = [
+    ...supportedActivityTypes,
+    ...Array.from(activityGroups.keys()).filter(
+      (activity) => !supportedActivityTypes.includes(activity),
+    ),
+  ];
+
+  return activityOrder
+    .filter((activity) => activityGroups.has(activity))
+    .map((activity): FridayReviewGroup => {
+      const dateGroups =
+        activityGroups.get(activity) ??
+        new Map<string, Map<string, WeeklyPlannerItem[]>>();
+
+      return {
+        activity,
+        dates: Array.from(dateGroups.entries()).map(
+          ([dateKey, colleagueGroups]) => ({
+            dateKey,
+            colleagues: Array.from(colleagueGroups.entries()).map(
+              ([traineeName, colleagueItems]) => ({
+                traineeName,
+                items: [...colleagueItems].sort((left, right) =>
+                  left.process.localeCompare(right.process),
+                ),
+              }),
+            ),
+          }),
+        ),
+      };
+    });
+}
+
 export default function WeeklyPlannerPage() {
   const [plannerItems, setPlannerItems] = useState<WeeklyPlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
+  const [pendingReviews, setPendingReviews] = useState<
+    Record<number, PendingReview>
+  >({});
   const [weekBeginning, setWeekBeginning] = useState(() =>
     toDateInputValue(getMonday(new Date())),
   );
@@ -133,10 +217,8 @@ export default function WeeklyPlannerPage() {
   const [activityType, setActivityType] = useState('All');
   const [status, setStatus] = useState('All');
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPlanner() {
+  const loadPlanner = useCallback(
+    async (options?: { cancelled?: () => boolean }) => {
       setLoading(true);
       setError('');
 
@@ -151,26 +233,97 @@ export default function WeeklyPlannerPage() {
         }
 
         const data = (await response.json()) as WeeklyPlannerItem[];
-        if (!cancelled) {
+        if (!options?.cancelled?.()) {
           setPlannerItems(data);
         }
       } catch {
-        if (!cancelled) {
+        if (!options?.cancelled?.()) {
           setError('Failed to load weekly planner.');
         }
       } finally {
-        if (!cancelled) {
+        if (!options?.cancelled?.()) {
           setLoading(false);
         }
       }
-    }
+    },
+    [weekBeginning],
+  );
 
-    void loadPlanner();
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadPlanner({ cancelled: () => cancelled });
 
     return () => {
       cancelled = true;
     };
-  }, [weekBeginning]);
+  }, [loadPlanner]);
+
+  async function saveFridayReview() {
+    const changedReviews = filtered
+      .map((item) => ({
+        item,
+        review: pendingReviews[item.id],
+      }))
+      .filter(
+        (
+          value,
+        ): value is {
+          item: WeeklyPlannerItem;
+          review: PendingReview & { status: ReviewStatus };
+        } => Boolean(value.review?.status),
+      );
+
+    if (!changedReviews.length) {
+      return;
+    }
+
+    setReviewError('');
+    setSavingReview(true);
+
+    try {
+      for (const { item, review } of changedReviews) {
+        const deviationReason = review.deviationReason.trim();
+        const response = await fetch('/api/weekly-planner', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: item.id,
+            status: review.status,
+            actualDate:
+              review.status === 'Completed'
+                ? toDateInputValue(new Date())
+                : undefined,
+            deviationReason:
+              review.status === 'Deferred' || review.status === 'Not Completed'
+                ? deviationReason || undefined
+                : undefined,
+            weekCommencing: item.weekCommencing,
+            plannedDate: item.plannedDate,
+            department: item.department,
+            traineeName: item.traineeName,
+            process: item.process,
+            activityType: item.activityType,
+            owner: item.owner,
+            traineeProcessId: item.traineeProcessId,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update planner item.');
+        }
+      }
+
+      await loadPlanner();
+      setPendingReviews({});
+    } catch {
+      setReviewError('Failed to save Friday Review.');
+    } finally {
+      setSavingReview(false);
+    }
+  }
 
   const filtered = useMemo(
     () =>
@@ -212,6 +365,13 @@ export default function WeeklyPlannerPage() {
     activity,
     items: filtered.filter((item) => item.activityType === activity),
   }));
+  const fridayReviewGroups = useMemo(
+    () => groupFridayReviewItems(filtered),
+    [filtered],
+  );
+  const pendingReviewCount = Object.values(pendingReviews).filter(
+    (review) => review.status,
+  ).length;
 
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -368,6 +528,132 @@ export default function WeeklyPlannerPage() {
             Completion percentage, deferred work, carry-over items and
             next-week actions are captured on Friday review.
           </p>
+          {reviewError ? (
+            <p className="mt-3 text-sm text-red-600">{reviewError}</p>
+          ) : null}
+          <div className="mt-4 space-y-4">
+            {fridayReviewGroups.length ? (
+              fridayReviewGroups.map((activityGroup) => (
+                <section key={activityGroup.activity}>
+                  <h4 className="text-sm font-semibold text-slate-700">
+                    {activityGroup.activity}
+                  </h4>
+                  <div className="mt-2 space-y-2">
+                    {activityGroup.dates.map((dateGroup) => (
+                      <div key={dateGroup.dateKey}>
+                        <p className="text-sm font-medium text-slate-900">
+                          {formatDate(dateGroup.dateKey)}
+                        </p>
+                        <div className="mt-1.5 space-y-2">
+                          {dateGroup.colleagues.map((colleagueGroup) => (
+                            <section
+                              key={colleagueGroup.traineeName}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                            >
+                              <p className="text-sm font-bold text-slate-800">
+                                {colleagueGroup.traineeName}
+                              </p>
+                              <div className="mt-1.5 divide-y divide-slate-100">
+                                {colleagueGroup.items.map((item) => {
+                                  const pendingReview = pendingReviews[
+                                    item.id
+                                  ] ?? {
+                                    status: '',
+                                    deviationReason: '',
+                                  };
+                                  const showDeviationReason =
+                                    pendingReview.status === 'Deferred' ||
+                                    pendingReview.status === 'Not Completed';
+
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className="grid gap-2 py-1.5 md:grid-cols-[minmax(0,1fr)_10rem] md:items-center"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium text-slate-700">
+                                          {item.process}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          Current: {item.status}
+                                        </p>
+                                      </div>
+                                      <select
+                                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                                        value={pendingReview.status}
+                                        disabled={savingReview}
+                                        onChange={(event) =>
+                                          setPendingReviews((current) => ({
+                                            ...current,
+                                            [item.id]: {
+                                              ...pendingReview,
+                                              status: event.target
+                                                .value as ReviewStatus | '',
+                                            },
+                                          }))
+                                        }
+                                      >
+                                        <option value="">Select outcome</option>
+                                        {reviewStatuses.map((reviewStatus) => (
+                                          <option
+                                            key={reviewStatus}
+                                            value={reviewStatus}
+                                          >
+                                            {reviewStatus}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {showDeviationReason ? (
+                                        <input
+                                          className="rounded-lg border border-slate-200 px-2.5 py-2 text-sm md:col-span-2"
+                                          type="text"
+                                          value={pendingReview.deviationReason}
+                                          disabled={savingReview}
+                                          onChange={(event) =>
+                                            setPendingReviews((current) => ({
+                                              ...current,
+                                              [item.id]: {
+                                                ...pendingReview,
+                                                deviationReason:
+                                                  event.target.value,
+                                              },
+                                            }))
+                                          }
+                                          placeholder="Deviation reason"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">
+                No items match the current filters.
+              </p>
+            )}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              type="button"
+              disabled={savingReview || pendingReviewCount === 0}
+              onClick={() => void saveFridayReview()}
+            >
+              {savingReview
+                ? 'Saving...'
+                : `Save Friday Review${
+                    pendingReviewCount ? ` (${pendingReviewCount})` : ''
+                  }`}
+            </button>
+          </div>
         </article>
       </div>
     </div>
