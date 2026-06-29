@@ -1,6 +1,13 @@
 'use client';
 
-import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 type ColleagueCompetency = {
   traineeProcessId: number;
@@ -75,6 +82,7 @@ type AssessmentScheduleForm = {
 
 const assessmentDateOrderError =
   'Assessment date cannot be earlier than pre-assessment date.';
+const defaultDepartment = 'Surfacing';
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -179,6 +187,7 @@ async function fetchPeople(signal?: AbortSignal) {
 }
 
 export default function ColleaguesPage() {
+  const defaultDepartmentApplied = useRef(false);
   const [colleagues, setColleagues] = useState<ColleagueListItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [trainingAssessors, setTrainingAssessors] = useState<string[]>([]);
@@ -221,14 +230,24 @@ export default function ColleaguesPage() {
         const representedDepartments = new Set(
           colleagueData.map((colleague) => colleague.department.name),
         );
+        const selectableDepartments = departmentData.filter(
+          (department) =>
+            department.active || representedDepartments.has(department.name),
+        );
 
         setColleagues(colleagueData);
-        setDepartments(
-          departmentData.filter(
-            (department) =>
-              department.active || representedDepartments.has(department.name),
-          ),
-        );
+        setDepartments(selectableDepartments);
+        if (
+          !defaultDepartmentApplied.current &&
+          selectableDepartments.some(
+            (department) => department.name === defaultDepartment,
+          )
+        ) {
+          setDepartment((current) =>
+            current === 'All' ? defaultDepartment : current,
+          );
+        }
+        defaultDepartmentApplied.current = true;
         setTrainingAssessors(
           namesForRole(peopleData.people, 'Training Assessor'),
         );

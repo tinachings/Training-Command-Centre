@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type TrainingPipelineItem = {
   traineeProcessId: number;
@@ -42,6 +42,7 @@ type PeopleResponse = {
 
 const assessmentDateOrderError =
   'Assessment date cannot be earlier than pre-assessment date.';
+const defaultDepartment = 'Surfacing';
 
 function formatDate(value: string | null) {
   return value ? value.slice(0, 10) : '';
@@ -95,6 +96,7 @@ function toScheduleForm(
 }
 
 export default function TrainingPipelinePage() {
+  const defaultDepartmentApplied = useRef(false);
   const [traineeProcesses, setTraineeProcesses] = useState<
     TrainingPipelineItem[]
   >([]);
@@ -136,6 +138,15 @@ export default function TrainingPipelinePage() {
       const data = (await response.json()) as TrainingPipelineItem[];
       const peopleData = (await peopleResponse.json()) as PeopleResponse;
       setTraineeProcesses(data);
+      if (
+        !defaultDepartmentApplied.current &&
+        data.some((item) => item.departmentName === defaultDepartment)
+      ) {
+        setDepartment((current) =>
+          current === 'All' ? defaultDepartment : current,
+        );
+      }
+      defaultDepartmentApplied.current = true;
       setTrainingAssessors(
         namesForRole(peopleData.people, 'Training Assessor'),
       );

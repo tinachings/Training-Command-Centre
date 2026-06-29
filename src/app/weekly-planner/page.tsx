@@ -34,6 +34,13 @@ type GroupedRefresherDate = {
   }[];
 };
 
+type SummaryStatus =
+  | 'planned'
+  | 'completed'
+  | 'deferred'
+  | 'notCompleted'
+  | 'carryOver';
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -58,6 +65,30 @@ function getMonday(date: Date) {
   monday.setHours(0, 0, 0, 0);
 
   return monday;
+}
+
+function summaryStatus(item: WeeklyPlannerItem): SummaryStatus {
+  if (item.actualDate) {
+    return 'completed';
+  }
+
+  if (item.status === 'Completed') {
+    return 'completed';
+  }
+
+  if (item.status === 'Deferred') {
+    return 'deferred';
+  }
+
+  if (item.status === 'Not Completed') {
+    return 'notCompleted';
+  }
+
+  if (item.status === 'Carry Over') {
+    return 'carryOver';
+  }
+
+  return 'planned';
 }
 
 function groupRefresherPlanningItems(items: WeeklyPlannerItem[]) {
@@ -152,14 +183,23 @@ export default function WeeklyPlannerPage() {
     [department, activityType, status, plannerItems],
   );
 
-  const summary = {
-    planned: filtered.filter((item) => item.status === 'Planned').length,
-    completed: filtered.filter((item) => item.status === 'Completed').length,
-    deferred: filtered.filter((item) => item.status === 'Deferred').length,
-    notCompleted: filtered.filter((item) => item.status === 'Not Completed')
-      .length,
-    carryOver: filtered.filter((item) => item.status === 'Carry Over').length,
-  };
+  const summary = filtered.reduce<Record<SummaryStatus, number>>(
+    (counts, item) => {
+      const status = summaryStatus(item);
+
+      return {
+        ...counts,
+        [status]: counts[status] + 1,
+      };
+    },
+    {
+      planned: 0,
+      completed: 0,
+      deferred: 0,
+      notCompleted: 0,
+      carryOver: 0,
+    },
+  );
 
   const departments = Array.from(
     new Set(plannerItems.map((item) => item.department)),

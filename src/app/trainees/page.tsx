@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type TraineeListItem = {
   id: number;
@@ -22,6 +22,8 @@ type TraineeListItem = {
   followUpRequired: boolean;
 };
 
+const defaultDepartment = 'Surfacing';
+
 async function fetchTrainees(signal?: AbortSignal) {
   const response = await fetch('/api/trainees', {
     cache: 'no-store',
@@ -36,6 +38,7 @@ async function fetchTrainees(signal?: AbortSignal) {
 }
 
 export default function TraineesPage() {
+  const defaultDepartmentApplied = useRef(false);
   const [trainees, setTrainees] = useState<TraineeListItem[]>([]);
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('All');
@@ -50,7 +53,20 @@ export default function TraineesPage() {
 
     async function loadTrainees() {
       try {
-        setTrainees(await fetchTrainees(controller.signal));
+        const traineeData = await fetchTrainees(controller.signal);
+
+        setTrainees(traineeData);
+        if (
+          !defaultDepartmentApplied.current &&
+          traineeData.some(
+            (trainee) => trainee.department.name === defaultDepartment,
+          )
+        ) {
+          setDepartment((current) =>
+            current === 'All' ? defaultDepartment : current,
+          );
+        }
+        defaultDepartmentApplied.current = true;
         setError('');
       } catch (loadError) {
         if ((loadError as Error).name !== 'AbortError') {
