@@ -6,6 +6,7 @@ type TrainingPipelineAssignment = {
   traineeId: number;
   stage: string;
   status: string;
+  assessmentOutcome: string | null;
   readinessScore: number | null;
   trainingBuddy: string | null;
   trainingStartDate: Date | null;
@@ -28,13 +29,31 @@ type TrainingPipelineAssignment = {
 
 export async function GET(request: Request) {
   const department = new URL(request.url).searchParams.get('department')?.trim();
+  const visibleStages = [
+    'Requested',
+    'Scheduled',
+    'In Training',
+    'Ready for Pre-Assessment',
+    'Ready for Assessment',
+  ];
 
   const assignments: TrainingPipelineAssignment[] =
     await prisma.traineeProcess.findMany({
     where: {
-      status: {
-        not: 'Archived',
+      stage: {
+        in: visibleStages,
       },
+      status: {
+        notIn: ['Archived', 'Competent'],
+      },
+      OR: [
+        { assessmentOutcome: null },
+        {
+          assessmentOutcome: {
+            not: 'Competent',
+          },
+        },
+      ],
       trainee: {
         archived: false,
         ...(department
@@ -51,6 +70,7 @@ export async function GET(request: Request) {
       traineeId: true,
       stage: true,
       status: true,
+      assessmentOutcome: true,
       readinessScore: true,
       trainingBuddy: true,
       trainingStartDate: true,

@@ -27,15 +27,11 @@ const supportedActivityTypes = [
 ];
 
 function formatDate(value: string) {
-  return value.slice(0, 10);
-}
-
-function formatAssessor(value: string | null) {
-  const assessor = value?.trim();
-
-  return assessor && assessor.toLowerCase() !== 'null'
-    ? assessor
-    : 'Not Assigned';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
 }
 
 function toDateInputValue(date: Date) {
@@ -213,51 +209,6 @@ export default function WeeklyPlannerPage() {
         <p className="text-sm text-slate-500">Loading weekly planner...</p>
       ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {!loading && !error ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="text-slate-500">
-              <tr>
-                <th className="pb-3 text-left">Planned Date</th>
-                <th className="pb-3 text-left">Department</th>
-                <th className="pb-3 text-left">Colleague Name</th>
-                <th className="pb-3 text-left">Process</th>
-                <th className="pb-3 text-left">Activity</th>
-                <th className="pb-3 text-left">Status</th>
-                <th className="pb-3 text-left">Actual Date</th>
-                <th className="pb-3 text-left">Assessor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
-                  <td className="py-3">{formatDate(item.plannedDate)}</td>
-                  <td className="py-3">{item.department}</td>
-                  <td className="py-3">{item.traineeName}</td>
-                  <td className="py-3">{item.process}</td>
-                  <td className="py-3">{item.activityType}</td>
-                  <td className="py-3">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    {item.actualDate ? formatDate(item.actualDate) : ''}
-                  </td>
-                  <td className="py-3">{formatAssessor(item.owner)}</td>
-                </tr>
-              ))}
-              {filtered.length === 0 ? (
-                <tr>
-                  <td className="py-6 text-sm text-slate-500" colSpan={8}>
-                    No planned work found for this week.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
           <h3 className="text-lg font-semibold">Monday Planning</h3>
@@ -279,9 +230,16 @@ export default function WeeklyPlannerPage() {
                         className="rounded-xl border border-slate-200 bg-white px-3 py-2"
                       >
                         <span className="font-medium text-slate-900">
-                          {item.traineeName}
+                          {formatDate(item.plannedDate)}
                         </span>
-                        <span className="text-slate-500"> - {item.process}</span>
+                        <span className="text-slate-500">
+                          {' '}
+                          &ndash;{' '}
+                          {item.traineeName}
+                          {' '}
+                          &ndash;{' '}
+                          {item.process}
+                        </span>
                       </li>
                     ))}
                   </ul>

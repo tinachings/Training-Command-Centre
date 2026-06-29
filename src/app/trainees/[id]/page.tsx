@@ -183,7 +183,7 @@ export default function TraineeProfilePage() {
             href={`/trainees/${trainee.id}/edit`}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700"
           >
-            Edit Trainee
+            Edit Colleague
           </Link>
         </div>
       </div>
@@ -196,7 +196,7 @@ export default function TraineeProfilePage() {
           ["Training Assessor", trainee.trainingAssessor],
           ["Shift", trainee.shift],
           ["Start Date", trainee.startDate?.slice(0, 10)],
-          ["Active Processes", String(activeAssignments.length)],
+          ["Active Training", String(activeAssignments.length)],
           ["Competent Processes", String(completedAssignments.length)],
           ["Follow-Up Required", followUpCount > 0 ? "Yes" : "No"],
         ].map(([label, value]) => (

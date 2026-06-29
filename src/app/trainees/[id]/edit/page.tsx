@@ -171,11 +171,11 @@ export default function EditTraineePage() {
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
-        <p className="text-sm uppercase tracking-[0.3em] text-sky-700">Edit Trainee</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-sky-700">Edit Colleague</p>
         <h2 className="mt-2 text-2xl font-semibold">Update trainee details without losing training history.</h2>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm"><span>Trainee Name</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.name} onChange={(e) => setForm((prev) => prev ? { ...prev, name: e.target.value } : prev)} /></label>
+        <label className="space-y-2 text-sm"><span>Colleague Name</span><input className="w-full rounded-xl border border-slate-200 p-3" value={form.name} onChange={(e) => setForm((prev) => prev ? { ...prev, name: e.target.value } : prev)} /></label>
         <label className="space-y-2 text-sm"><span>Department</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.department} onChange={(e) => setForm((prev) => prev ? { ...prev, department: e.target.value } : prev)}>{departments.length ? departments.map((department) => <option key={department.id} value={department.name}>{department.name}</option>) : <option value="">No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Team Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.teamLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, teamLeader: e.target.value } : prev)}>{teamLeaderOptions.length ? teamLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>
         <label className="space-y-2 text-sm"><span>Shift Leader</span><select className="w-full rounded-xl border border-slate-200 p-3" value={form.shiftLeader} onChange={(e) => setForm((prev) => prev ? { ...prev, shiftLeader: e.target.value } : prev)}>{shiftLeaderOptions.length ? shiftLeaderOptions.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">No options configured</option>}</select></label>

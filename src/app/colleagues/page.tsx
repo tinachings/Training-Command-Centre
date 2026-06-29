@@ -651,13 +651,21 @@ export default function ColleaguesPage() {
                                       </td>
                                       <td className="px-4 py-3">
                                         {competency.refresherStatus ? (
-                                          <span
-                                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${refresherStatusClass(
-                                              competency.refresherStatus,
-                                            )}`}
-                                          >
-                                            {competency.refresherStatus}
-                                          </span>
+                                          <div className="flex flex-wrap gap-2">
+                                            <span
+                                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${refresherStatusClass(
+                                                competency.refresherStatus,
+                                              )}`}
+                                            >
+                                              {competency.refresherStatus}
+                                            </span>
+                                            {competency.scheduleStatus ===
+                                            'Scheduled' ? (
+                                              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                                                Scheduled
+                                              </span>
+                                            ) : null}
+                                          </div>
                                         ) : (
                                           '-'
                                         )}

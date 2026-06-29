@@ -115,7 +115,7 @@ export default function TraineesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-sky-700">
-            Trainees
+            Training Records
           </p>
           <h2 className="mt-2 text-2xl font-semibold">
             Manage trainee profiles, processes and follow-up actions.
@@ -129,7 +129,7 @@ export default function TraineesPage() {
           href="/trainees/new"
           className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white"
         >
-          Add New Trainee
+          Add New Colleague
         </Link>
       </div>
 
@@ -201,14 +201,12 @@ export default function TraineesPage() {
         <table className="min-w-full text-sm">
           <thead className="text-slate-500">
             <tr>
-              <th className="pb-3 text-left">Trainee Name</th>
+              <th className="pb-3 text-left">Colleague Name</th>
               <th className="pb-3 text-left">Department</th>
               <th className="pb-3 text-left">Team Leader</th>
               <th className="pb-3 text-left">Shift Leader</th>
-              <th className="pb-3 text-left">Training Assessor</th>
               <th className="pb-3 text-left">Shift</th>
-              <th className="pb-3 text-left">Start Date</th>
-              <th className="pb-3 text-left">Active Processes</th>
+              <th className="pb-3 text-left">Active Training</th>
               <th className="pb-3 text-left">Competent Processes</th>
               <th className="pb-3 text-left">Current Status</th>
               <th className="pb-3 text-left">Follow-Up Required</th>
@@ -227,13 +225,7 @@ export default function TraineesPage() {
                 <td className="py-3">{trainee.department.name}</td>
                 <td className="py-3">{trainee.teamLeader || '-'}</td>
                 <td className="py-3">{trainee.shiftLeader || '-'}</td>
-                <td className="py-3">{trainee.trainingAssessor || '-'}</td>
                 <td className="py-3">{trainee.shift || '-'}</td>
-                <td className="py-3">
-                  {trainee.startDate
-                    ? new Date(trainee.startDate).toLocaleDateString()
-                    : '-'}
-                </td>
                 <td className="py-3">{trainee.activeProcessCount}</td>
                 <td className="py-3">{trainee.competentProcessCount}</td>
                 <td className="py-3">
@@ -254,7 +246,7 @@ export default function TraineesPage() {
                       href={`/trainees/${trainee.id}/edit`}
                       className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"
                     >
-                      Edit Trainee
+                      Edit Colleague
                     </Link>
                     <Link
                       href={`/trainees/${trainee.id}/assign`}

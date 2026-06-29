@@ -9,7 +9,7 @@ const navItems = [
   ['Production Matrix', '/production-matrix'],
   ['Daily Control', '/daily-control'],
   ['Colleagues', '/colleagues'],
-  ['Trainees', '/trainees'],
+  ['Training Records', '/trainees'],
   ['Training Pipeline', '/training-pipeline'],
   ['Weekly Planner', '/weekly-planner'],
   ['Assessment Generator', '/assessment-generator'],
