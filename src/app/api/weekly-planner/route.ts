@@ -129,6 +129,51 @@ function parsePlannerItemId(value: unknown) {
   return Number.isInteger(id) && id !== 0 ? id : null;
 }
 
+function utcDateFromParts(year: string, month: string, day: string) {
+  const date = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateKeyFromDate(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizePlannerDate(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const text = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+
+  if (match) {
+    const [, year, month, day] = match;
+
+    return utcDateFromParts(year, month, day) ?? undefined;
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
 function parseWeekBeginning(value: string | null) {
   if (!value) {
     return null;
@@ -140,25 +185,12 @@ function parseWeekBeginning(value: string | null) {
   }
 
   const [, year, month, day] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  date.setHours(0, 0, 0, 0);
 
-  return Number.isNaN(date.getTime()) ? null : date;
+  return utcDateFromParts(year, month, day);
 }
 
 function parseDateValue(value: unknown) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === null || value === '') {
-    return null;
-  }
-
-  const date = new Date(String(value));
-  date.setHours(0, 0, 0, 0);
-
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  return normalizePlannerDate(value);
 }
 
 function parseRequiredDate(value: unknown) {
@@ -169,9 +201,10 @@ function parseRequiredDate(value: unknown) {
 
 function todayDate() {
   const date = new Date();
-  date.setHours(0, 0, 0, 0);
 
-  return date;
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 }
 
 function optionalText(value: unknown) {
@@ -206,7 +239,7 @@ function parseOptionalPositiveId(value: unknown) {
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
 
   return nextDate;
 }
@@ -466,30 +499,79 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const plannedItemKey = (
+  const sourcePlannerItemKey = (
+    activityType: string,
+    traineeProcessId: number,
+    plannedDate: Date,
+  ) =>
+    [
+      'source',
+      activityType,
+      String(traineeProcessId),
+      dateKeyFromDate(plannedDate),
+    ].join('|');
+
+  const fallbackPlannerItemKey = (
+    activityType: string,
     traineeName: string,
     process: string,
     plannedDate: Date,
-  ) => `${traineeName}|${process}|${plannedDate.toISOString().slice(0, 10)}`;
+  ) =>
+    [
+      'fallback',
+      activityType,
+      traineeName,
+      process,
+      dateKeyFromDate(plannedDate),
+    ].join('|');
+
+  const generatedPlannerItemKeys = (
+    activityType: string,
+    traineeProcessId: number | null,
+    traineeName: string,
+    process: string,
+    plannedDate: Date,
+  ) => [
+    ...(traineeProcessId
+      ? [sourcePlannerItemKey(activityType, traineeProcessId, plannedDate)]
+      : []),
+    fallbackPlannerItemKey(activityType, traineeName, process, plannedDate),
+  ];
 
   const isWithinSelectedWeek = (date: Date) =>
     date >= weekBeginning && date < weekEnd;
 
-  const existingKeysForActivity = (activityType: string) =>
-    new Set(
-      plannerItems
-        .filter(
-          (item: PlannerItemResponse) => item.activityType === activityType,
-        )
-        .map((item: PlannerItemResponse) =>
-          plannedItemKey(item.traineeName, item.process, item.plannedDate),
-        ),
-    );
+  const existingGeneratedItemKeys = new Set(
+    plannerItems.map((item: PlannerItemResponse) =>
+      item.traineeProcessId
+        ? sourcePlannerItemKey(
+            item.activityType,
+            item.traineeProcessId,
+            item.plannedDate,
+          )
+        : fallbackPlannerItemKey(
+            item.activityType,
+            item.traineeName,
+            item.process,
+            item.plannedDate,
+          ),
+    ),
+  );
 
-  const existingNewTrainingKeys = existingKeysForActivity('New Training');
-  const existingRefresherKeys = existingKeysForActivity('Refresher');
-  const existingPreAssessmentKeys = existingKeysForActivity('Pre-Assessment');
-  const existingAssessmentKeys = existingKeysForActivity('Assessment');
+  const hasExistingGeneratedItem = (
+    activityType: string,
+    traineeProcessId: number | null,
+    traineeName: string,
+    process: string,
+    plannedDate: Date,
+  ) =>
+    generatedPlannerItemKeys(
+      activityType,
+      traineeProcessId,
+      traineeName,
+      process,
+      plannedDate,
+    ).some((key) => existingGeneratedItemKeys.has(key));
 
   const scheduledAssessmentStatus = (assignment: ScheduledAssessmentAssignment) =>
     assignment.stage === assignment.status
@@ -517,12 +599,13 @@ export async function GET(request: Request) {
         assignment.trainingStartDate !== null,
     )
     .filter((assignment: NewTrainingAssignment & { trainingStartDate: Date }) => {
-      const key = plannedItemKey(
+      return !hasExistingGeneratedItem(
+        'New Training',
+        assignment.id,
         assignment.trainee.name,
         assignment.process.name,
         assignment.trainingStartDate,
       );
-      return !existingNewTrainingKeys.has(key);
     })
     .map(
       (
@@ -566,13 +649,13 @@ export async function GET(request: Request) {
           refresher.traineeProcess.trainee.name || refresher.traineeName;
         const processName =
           refresher.traineeProcess.process.name || refresher.process;
-        const key = plannedItemKey(
+        return !hasExistingGeneratedItem(
+          'Refresher',
+          refresher.traineeProcessId,
           traineeName,
           processName,
           refresher.scheduledRefresherDate,
         );
-
-        return !existingRefresherKeys.has(key);
       },
     )
     .map(
@@ -617,13 +700,13 @@ export async function GET(request: Request) {
           scheduledPreAssessmentDate: Date;
         },
       ) => {
-        const key = plannedItemKey(
+        return !hasExistingGeneratedItem(
+          'Pre-Assessment',
+          assignment.id,
           assignment.trainee.name,
           assignment.process.name,
           assignment.scheduledPreAssessmentDate,
         );
-
-        return !existingPreAssessmentKeys.has(key);
       },
     )
     .map(
@@ -665,13 +748,13 @@ export async function GET(request: Request) {
           scheduledAssessmentDate: Date;
         },
       ) => {
-        const key = plannedItemKey(
+        return !hasExistingGeneratedItem(
+          'Assessment',
+          assignment.id,
           assignment.trainee.name,
           assignment.process.name,
           assignment.scheduledAssessmentDate,
         );
-
-        return !existingAssessmentKeys.has(key);
       },
     )
     .map(
@@ -796,7 +879,7 @@ export async function PATCH(request: Request) {
 
     const itemToReview =
       plannerItem ??
-      (await createGeneratedPlannerItem(transaction, generatedSource));
+      (await findOrCreateGeneratedPlannerItem(transaction, generatedSource));
 
     const updatedItem = await transaction.weeklyPlannerItem.update({
       where: {
@@ -852,12 +935,21 @@ export async function PATCH(request: Request) {
   return NextResponse.json(reviewedItem);
 }
 
-async function createGeneratedPlannerItem(
+async function findOrCreateGeneratedPlannerItem(
   transaction: PrismaTransactionClient,
   source: GeneratedPlannerSource | null,
 ) {
   if (!source) {
     throw new Error('Generated planner item source fields are required.');
+  }
+
+  const existingItem = await findExistingGeneratedPlannerItem(
+    transaction,
+    source,
+  );
+
+  if (existingItem) {
+    return existingItem;
   }
 
   return transaction.weeklyPlannerItem.create({
@@ -875,6 +967,36 @@ async function createGeneratedPlannerItem(
       followUpRequired: false,
       followUpDate: null,
       traineeProcessId: source.traineeProcessId,
+    },
+  });
+}
+
+async function findExistingGeneratedPlannerItem(
+  transaction: PrismaTransactionClient,
+  source: GeneratedPlannerSource,
+) {
+  if (source.traineeProcessId) {
+    return transaction.weeklyPlannerItem.findFirst({
+      where: {
+        activityType: source.activityType,
+        traineeProcessId: source.traineeProcessId,
+        plannedDate: source.plannedDate,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+  }
+
+  return transaction.weeklyPlannerItem.findFirst({
+    where: {
+      activityType: source.activityType,
+      traineeName: source.traineeName,
+      process: source.process,
+      plannedDate: source.plannedDate,
+    },
+    orderBy: {
+      id: 'asc',
     },
   });
 }

@@ -59,6 +59,13 @@ type PendingReview = {
   deviationReason: string;
 };
 
+const finalReviewStatuses = new Set<string>([
+  'Completed',
+  'Deferred',
+  'Not Completed',
+  'Carry Over',
+]);
+
 const reviewStatuses: ReviewStatus[] = [
   'Completed',
   'Deferred',
@@ -72,6 +79,28 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(value));
+}
+
+function plannerDateKey(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+
+  if (match) {
+    const [, year, month, day] = match;
+
+    return `${year}-${month}-${day}`;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
 
 function toDateInputValue(date: Date) {
@@ -116,6 +145,18 @@ function summaryStatus(item: WeeklyPlannerItem): SummaryStatus {
   return 'planned';
 }
 
+function isReviewStatus(status: string): status is ReviewStatus {
+  return reviewStatuses.includes(status as ReviewStatus);
+}
+
+function requiresDeviationReason(status: ReviewStatus | '') {
+  return (
+    status === 'Deferred' ||
+    status === 'Not Completed' ||
+    status === 'Carry Over'
+  );
+}
+
 function groupRefresherPlanningItems(items: WeeklyPlannerItem[]) {
   const dateGroups = new Map<
     string,
@@ -123,7 +164,7 @@ function groupRefresherPlanningItems(items: WeeklyPlannerItem[]) {
   >();
 
   items.forEach((item) => {
-    const dateKey = item.plannedDate.slice(0, 10);
+    const dateKey = plannerDateKey(item.plannedDate);
     const colleagueGroups = dateGroups.get(dateKey) ?? new Map();
     const colleagueItems = colleagueGroups.get(item.traineeName) ?? [];
 
@@ -154,7 +195,7 @@ function groupFridayReviewItems(items: WeeklyPlannerItem[]) {
   >();
 
   items.forEach((item) => {
-    const dateKey = item.plannedDate.slice(0, 10);
+    const dateKey = plannerDateKey(item.plannedDate);
     const dateGroups =
       activityGroups.get(item.activityType) ??
       new Map<string, Map<string, WeeklyPlannerItem[]>>();
@@ -215,7 +256,6 @@ export default function WeeklyPlannerPage() {
   );
   const [department, setDepartment] = useState('All');
   const [activityType, setActivityType] = useState('All');
-  const [status, setStatus] = useState('All');
 
   const loadPlanner = useCallback(
     async (options?: { cancelled?: () => boolean }) => {
@@ -260,7 +300,7 @@ export default function WeeklyPlannerPage() {
   }, [loadPlanner]);
 
   async function saveFridayReview() {
-    const changedReviews = filtered
+    const changedReviews = fridayReviewItems
       .map((item) => ({
         item,
         review: pendingReviews[item.id],
@@ -275,6 +315,17 @@ export default function WeeklyPlannerPage() {
       );
 
     if (!changedReviews.length) {
+      return;
+    }
+
+    const missingDeviationReason = changedReviews.some(({ review }) =>
+      requiresDeviationReason(review.status) && !review.deviationReason.trim(),
+    );
+
+    if (missingDeviationReason) {
+      setReviewError(
+        'Deviation reason is required for Deferred, Not Completed and Carry Over outcomes.',
+      );
       return;
     }
 
@@ -297,7 +348,7 @@ export default function WeeklyPlannerPage() {
                 ? toDateInputValue(new Date())
                 : undefined,
             deviationReason:
-              review.status === 'Deferred' || review.status === 'Not Completed'
+              requiresDeviationReason(review.status)
                 ? deviationReason || undefined
                 : undefined,
             weekCommencing: item.weekCommencing,
@@ -330,10 +381,9 @@ export default function WeeklyPlannerPage() {
       plannerItems.filter(
         (item) =>
           (department === 'All' || item.department === department) &&
-          (activityType === 'All' || item.activityType === activityType) &&
-          (status === 'All' || item.status === status),
+          (activityType === 'All' || item.activityType === activityType),
       ),
-    [department, activityType, status, plannerItems],
+    [department, activityType, plannerItems],
   );
 
   const summary = filtered.reduce<Record<SummaryStatus, number>>(
@@ -360,14 +410,17 @@ export default function WeeklyPlannerPage() {
   const activityTypes = Array.from(
     new Set([...supportedActivityTypes, ...plannerItems.map((item) => item.activityType)]),
   );
-  const statuses = Array.from(new Set(plannerItems.map((item) => item.status)));
+  const mondayPlanningItems = filtered.filter(
+    (item) => !finalReviewStatuses.has(item.status),
+  );
+  const fridayReviewItems = filtered;
   const mondayPlanningGroups = supportedActivityTypes.map((activity) => ({
     activity,
-    items: filtered.filter((item) => item.activityType === activity),
+    items: mondayPlanningItems.filter((item) => item.activityType === activity),
   }));
   const fridayReviewGroups = useMemo(
-    () => groupFridayReviewItems(filtered),
-    [filtered],
+    () => groupFridayReviewItems(fridayReviewItems),
+    [fridayReviewItems],
   );
   const pendingReviewCount = Object.values(pendingReviews).filter(
     (review) => review.status,
@@ -401,7 +454,7 @@ export default function WeeklyPlannerPage() {
           </article>
         ))}
       </div>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
             Week Beginning
@@ -430,16 +483,6 @@ export default function WeeklyPlannerPage() {
         >
           <option>All</option>
           {activityTypes.map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </select>
-        <select
-          className="rounded-xl border border-slate-200 p-3"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-        >
-          <option>All</option>
-          {statuses.map((value) => (
             <option key={value}>{value}</option>
           ))}
         </select>
@@ -555,45 +598,83 @@ export default function WeeklyPlannerPage() {
                               </p>
                               <div className="mt-1.5 divide-y divide-slate-100">
                                 {colleagueGroup.items.map((item) => {
-                                  const pendingReview = pendingReviews[
-                                    item.id
-                                  ] ?? {
-                                    status: '',
-                                    deviationReason: '',
-                                  };
+                                  const savedStatus = isReviewStatus(
+                                    item.status,
+                                  )
+                                    ? item.status
+                                    : '';
+                                  const pendingReview = pendingReviews[item.id];
+                                  const selectedStatus =
+                                    pendingReview?.status ?? savedStatus;
+                                  const selectedDeviationReason =
+                                    pendingReview?.deviationReason ??
+                                    item.deviationReason ??
+                                    '';
                                   const showDeviationReason =
-                                    pendingReview.status === 'Deferred' ||
-                                    pendingReview.status === 'Not Completed';
+                                    requiresDeviationReason(selectedStatus);
+                                  const isPending = Boolean(pendingReview);
 
                                   return (
                                     <div
                                       key={item.id}
-                                      className="grid gap-2 py-1.5 md:grid-cols-[minmax(0,1fr)_10rem] md:items-center"
+                                      className="grid gap-2 py-2 md:grid-cols-[minmax(0,1fr)_11rem] md:items-center"
                                     >
                                       <div className="min-w-0">
                                         <p className="truncate text-sm font-medium text-slate-700">
                                           {item.process}
                                         </p>
                                         <p className="text-xs text-slate-500">
-                                          Current: {item.status}
+                                          Saved: {item.status}
+                                          {isPending ? ' | Pending change' : ''}
                                         </p>
                                       </div>
                                       <select
                                         className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
-                                        value={pendingReview.status}
+                                        value={selectedStatus}
                                         disabled={savingReview}
-                                        onChange={(event) =>
-                                          setPendingReviews((current) => ({
-                                            ...current,
-                                            [item.id]: {
-                                              ...pendingReview,
-                                              status: event.target
-                                                .value as ReviewStatus | '',
-                                            },
-                                          }))
-                                        }
+                                        onChange={(event) => {
+                                          const nextStatus = event.target
+                                            .value as ReviewStatus | '';
+
+                                          if (!nextStatus) {
+                                            setPendingReviews((current) => {
+                                              const next = { ...current };
+                                              delete next[item.id];
+                                              return next;
+                                            });
+                                            return;
+                                          }
+
+                                          const nextDeviationReason =
+                                            requiresDeviationReason(nextStatus)
+                                              ? selectedDeviationReason
+                                              : '';
+
+                                          setPendingReviews((current) => {
+                                            const next = { ...current };
+
+                                            if (
+                                              nextStatus === savedStatus &&
+                                              nextDeviationReason ===
+                                                (item.deviationReason ?? '')
+                                            ) {
+                                              delete next[item.id];
+                                              return next;
+                                            }
+
+                                            next[item.id] = {
+                                              status: nextStatus,
+                                              deviationReason:
+                                                nextDeviationReason,
+                                            };
+
+                                            return next;
+                                          });
+                                        }}
                                       >
-                                        <option value="">Select outcome</option>
+                                        <option value="" disabled>
+                                          Select outcome
+                                        </option>
                                         {reviewStatuses.map((reviewStatus) => (
                                           <option
                                             key={reviewStatus}
@@ -607,18 +688,33 @@ export default function WeeklyPlannerPage() {
                                         <input
                                           className="rounded-lg border border-slate-200 px-2.5 py-2 text-sm md:col-span-2"
                                           type="text"
-                                          value={pendingReview.deviationReason}
+                                          value={selectedDeviationReason}
                                           disabled={savingReview}
-                                          onChange={(event) =>
-                                            setPendingReviews((current) => ({
-                                              ...current,
-                                              [item.id]: {
-                                                ...pendingReview,
+                                          onChange={(event) => {
+                                            const nextDeviationReason =
+                                              event.target.value;
+
+                                            setPendingReviews((current) => {
+                                              const next = { ...current };
+
+                                              if (
+                                                selectedStatus === savedStatus &&
+                                                nextDeviationReason ===
+                                                  (item.deviationReason ?? '')
+                                              ) {
+                                                delete next[item.id];
+                                                return next;
+                                              }
+
+                                              next[item.id] = {
+                                                status: selectedStatus,
                                                 deviationReason:
-                                                  event.target.value,
-                                              },
-                                            }))
-                                          }
+                                                  nextDeviationReason,
+                                              };
+
+                                              return next;
+                                            });
+                                          }}
                                           placeholder="Deviation reason"
                                         />
                                       ) : null}
