@@ -69,6 +69,29 @@ type RefresherScheduleForm = {
   assignedAssessor: string;
 };
 
+type RefresherCompletionTarget = {
+  colleagueName: string;
+  competency: ColleagueCompetency;
+};
+
+type RefresherCompletionForm = {
+  completedDate: string;
+  outcome: string;
+};
+
+type RefresherMoveAction = 'defer' | 'carryOver';
+
+type RefresherMoveTarget = {
+  action: RefresherMoveAction;
+  colleagueName: string;
+  competency: ColleagueCompetency;
+};
+
+type RefresherMoveForm = {
+  newScheduledDate: string;
+  deviationReason: string;
+};
+
 type AssessmentScheduleTarget = {
   colleagueName: string;
   competency: ColleagueCompetency;
@@ -83,6 +106,11 @@ type AssessmentScheduleForm = {
 const assessmentDateOrderError =
   'Assessment date cannot be earlier than pre-assessment date.';
 const defaultDepartment = 'Surfacing';
+const completionOutcomes = [
+  'Completed',
+  'Further Training Required',
+  'Not Completed',
+];
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -94,6 +122,22 @@ function formatDate(value: string | null) {
 
 function dateInputValue(value: string | null) {
   return value ? value.slice(0, 10) : '';
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nextWeekInputValue(value: string | null) {
+  const date = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return todayInputValue();
+  }
+
+  date.setDate(date.getDate() + 7);
+
+  return date.toISOString().slice(0, 10);
 }
 
 function validAssessor(value: string | null) {
@@ -205,6 +249,21 @@ export default function ColleaguesPage() {
       scheduledRefresherDate: '',
       assignedAssessor: '',
     });
+  const [refresherCompletionTarget, setRefresherCompletionTarget] =
+    useState<RefresherCompletionTarget | null>(null);
+  const [refresherCompletionForm, setRefresherCompletionForm] =
+    useState<RefresherCompletionForm>({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+  const [refresherMoveTarget, setRefresherMoveTarget] =
+    useState<RefresherMoveTarget | null>(null);
+  const [refresherMoveForm, setRefresherMoveForm] =
+    useState<RefresherMoveForm>({
+      newScheduledDate: '',
+      deviationReason: '',
+    });
+  const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
   const [assessmentScheduleTarget, setAssessmentScheduleTarget] =
     useState<AssessmentScheduleTarget | null>(null);
   const [assessmentScheduleForm, setAssessmentScheduleForm] =
@@ -215,6 +274,8 @@ export default function ColleaguesPage() {
     });
   const [scheduleError, setScheduleError] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [refresherActionError, setRefresherActionError] = useState('');
+  const [savingRefresherAction, setSavingRefresherAction] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -341,18 +402,41 @@ export default function ColleaguesPage() {
     );
   }
 
+  function closeRefresherActionForms() {
+    setRefresherScheduleTarget(null);
+    setRefresherScheduleForm({
+      scheduledRefresherDate: '',
+      assignedAssessor: '',
+    });
+    setRefresherCompletionTarget(null);
+    setRefresherCompletionForm({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+    setRefresherMoveTarget(null);
+    setRefresherMoveForm({
+      newScheduledDate: '',
+      deviationReason: '',
+    });
+    setRefresherActionError('');
+    setScheduleError('');
+  }
+
   function openScheduleRefresher(
     colleagueName: string,
     competency: ColleagueCompetency,
   ) {
+    closeRefresherActionForms();
     setAssessmentScheduleTarget(null);
     setRefresherScheduleTarget({ colleagueName, competency });
     setRefresherScheduleForm({
-      scheduledRefresherDate: dateInputValue(
-        competency.scheduledRefresherDate,
-      ),
+      scheduledRefresherDate:
+        competency.scheduleStatus === 'Scheduled'
+          ? dateInputValue(competency.scheduledRefresherDate)
+          : '',
       assignedAssessor: defaultAssessor(competency),
     });
+    setOpenActionMenuId(null);
     setScheduleError('');
   }
 
@@ -365,10 +449,61 @@ export default function ColleaguesPage() {
     setScheduleError('');
   }
 
+  function openCompleteRefresher(
+    colleagueName: string,
+    competency: ColleagueCompetency,
+  ) {
+    closeRefresherActionForms();
+    setAssessmentScheduleTarget(null);
+    setRefresherCompletionTarget({ colleagueName, competency });
+    setRefresherCompletionForm({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+    setOpenActionMenuId(null);
+  }
+
+  function closeCompleteRefresher() {
+    setRefresherCompletionTarget(null);
+    setRefresherCompletionForm({
+      completedDate: todayInputValue(),
+      outcome: completionOutcomes[0],
+    });
+    setRefresherActionError('');
+  }
+
+  function openMoveRefresher(
+    action: RefresherMoveAction,
+    colleagueName: string,
+    competency: ColleagueCompetency,
+  ) {
+    closeRefresherActionForms();
+    setAssessmentScheduleTarget(null);
+    setRefresherMoveTarget({ action, colleagueName, competency });
+    setRefresherMoveForm({
+      newScheduledDate:
+        action === 'carryOver'
+          ? nextWeekInputValue(competency.scheduledRefresherDate)
+          : '',
+      deviationReason: '',
+    });
+    setOpenActionMenuId(null);
+  }
+
+  function closeMoveRefresher() {
+    setRefresherMoveTarget(null);
+    setRefresherMoveForm({
+      newScheduledDate: '',
+      deviationReason: '',
+    });
+    setRefresherActionError('');
+  }
+
   function openScheduleAssessment(
     colleagueName: string,
     competency: ColleagueCompetency,
   ) {
+    closeRefresherActionForms();
     setRefresherScheduleTarget(null);
     setAssessmentScheduleTarget({ colleagueName, competency });
     setAssessmentScheduleForm({
@@ -453,6 +588,119 @@ export default function ColleaguesPage() {
     }
   }
 
+  async function saveCompleteRefresher(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!refresherCompletionTarget?.competency.refresherRecordId) {
+      setRefresherActionError('Select a scheduled refresher to complete.');
+      return;
+    }
+
+    setRefresherActionError('');
+
+    if (
+      !refresherCompletionForm.completedDate ||
+      !refresherCompletionForm.outcome
+    ) {
+      setRefresherActionError('Completed date and outcome are required.');
+      return;
+    }
+
+    setSavingRefresherAction(true);
+
+    try {
+      const response = await fetch(
+        `/api/refreshers/${refresherCompletionTarget.competency.refresherRecordId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            completedDate: refresherCompletionForm.completedDate,
+            outcome: refresherCompletionForm.outcome,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || 'Failed to complete refresher.');
+      }
+
+      await reloadColleagues();
+      closeCompleteRefresher();
+    } catch (caught) {
+      setRefresherActionError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to complete refresher.',
+      );
+    } finally {
+      setSavingRefresherAction(false);
+    }
+  }
+
+  async function saveMoveRefresher(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!refresherMoveTarget?.competency.refresherRecordId) {
+      setRefresherActionError('Select a scheduled refresher to update.');
+      return;
+    }
+
+    setRefresherActionError('');
+
+    if (!refresherMoveForm.newScheduledDate) {
+      setRefresherActionError('New scheduled date is required.');
+      return;
+    }
+
+    if (!refresherMoveForm.deviationReason.trim()) {
+      setRefresherActionError('Deviation reason is required.');
+      return;
+    }
+
+    setSavingRefresherAction(true);
+
+    try {
+      const response = await fetch(
+        `/api/refreshers/${refresherMoveTarget.competency.refresherRecordId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: refresherMoveTarget.action,
+            newScheduledDate: refresherMoveForm.newScheduledDate,
+            deviationReason: refresherMoveForm.deviationReason.trim(),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error || 'Failed to update refresher.');
+      }
+
+      await reloadColleagues();
+      closeMoveRefresher();
+    } catch (caught) {
+      setRefresherActionError(
+        caught instanceof Error
+          ? caught.message
+          : 'Failed to update refresher.',
+      );
+    } finally {
+      setSavingRefresherAction(false);
+    }
+  }
+
   async function saveScheduleAssessment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -519,8 +767,8 @@ export default function ColleaguesPage() {
             Competency and refresher overview.
           </h2>
           <p className="mt-2 text-slate-600">
-            Read-only view of current colleague competency coverage and
-            upcoming refresher needs.
+            Manage current colleague competency coverage and upcoming
+            refresher needs.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -650,6 +898,22 @@ export default function ColleaguesPage() {
                                   assessmentScheduleTarget?.competency
                                     .traineeProcessId ===
                                   competency.traineeProcessId;
+                                const isCompletingRefresher =
+                                  refresherCompletionTarget?.competency
+                                    .traineeProcessId ===
+                                  competency.traineeProcessId;
+                                const isMovingRefresher =
+                                  refresherMoveTarget?.competency
+                                    .traineeProcessId ===
+                                  competency.traineeProcessId;
+                                const isScheduledRefresher =
+                                  competency.scheduleStatus === 'Scheduled' &&
+                                  competency.scheduledRefresherDate !== null;
+                                const isCompletedRefresher =
+                                  competency.scheduleStatus === 'Completed';
+                                const hasOpenMenu =
+                                  openActionMenuId ===
+                                  competency.traineeProcessId;
 
                                 return (
                                   <Fragment key={competency.traineeProcessId}>
@@ -691,18 +955,83 @@ export default function ColleaguesPage() {
                                       </td>
                                       <td className="px-4 py-3">
                                         {isCompetentSignedOff(competency) ? (
-                                          <button
-                                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
-                                            type="button"
-                                            onClick={() =>
-                                              openScheduleRefresher(
-                                                colleague.name,
-                                                competency,
-                                              )
-                                            }
-                                          >
-                                            Schedule Refresher
-                                          </button>
+                                          <div className="relative inline-block">
+                                            <button
+                                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white"
+                                              type="button"
+                                              aria-expanded={hasOpenMenu}
+                                              onClick={() =>
+                                                setOpenActionMenuId((current) =>
+                                                  current ===
+                                                  competency.traineeProcessId
+                                                    ? null
+                                                    : competency.traineeProcessId,
+                                                )
+                                              }
+                                            >
+                                              Actions
+                                            </button>
+                                            {hasOpenMenu ? (
+                                              <div className="absolute right-0 z-10 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                                                {!isScheduledRefresher ||
+                                                isCompletedRefresher ? (
+                                                  <button
+                                                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                                    type="button"
+                                                    onClick={() =>
+                                                      openScheduleRefresher(
+                                                        colleague.name,
+                                                        competency,
+                                                      )
+                                                    }
+                                                  >
+                                                    Schedule Refresher
+                                                  </button>
+                                                ) : (
+                                                  <>
+                                                    <button
+                                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                                                      type="button"
+                                                      onClick={() =>
+                                                        openCompleteRefresher(
+                                                          colleague.name,
+                                                          competency,
+                                                        )
+                                                      }
+                                                    >
+                                                      Complete Refresher
+                                                    </button>
+                                                    <button
+                                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+                                                      type="button"
+                                                      onClick={() =>
+                                                        openMoveRefresher(
+                                                          'defer',
+                                                          colleague.name,
+                                                          competency,
+                                                        )
+                                                      }
+                                                    >
+                                                      Defer Refresher
+                                                    </button>
+                                                    <button
+                                                      className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700"
+                                                      type="button"
+                                                      onClick={() =>
+                                                        openMoveRefresher(
+                                                          'carryOver',
+                                                          colleague.name,
+                                                          competency,
+                                                        )
+                                                      }
+                                                    >
+                                                      Carry Over Refresher
+                                                    </button>
+                                                  </>
+                                                )}
+                                              </div>
+                                            ) : null}
+                                          </div>
                                         ) : (
                                           <button
                                             className="rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700"
@@ -936,6 +1265,190 @@ export default function ColleaguesPage() {
                                                 disabled={savingSchedule}
                                                 type="button"
                                                 onClick={closeScheduleRefresher}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </form>
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {isCompletingRefresher ? (
+                                      <tr className="border-t border-slate-100 bg-emerald-50/40">
+                                        <td className="px-4 py-4" colSpan={6}>
+                                          <form
+                                            className="space-y-3"
+                                            onSubmit={saveCompleteRefresher}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-slate-900">
+                                                Complete refresher
+                                              </p>
+                                              <p className="text-sm text-slate-600">
+                                                {
+                                                  refresherCompletionTarget
+                                                    ?.colleagueName
+                                                }{' '}
+                                                - {competency.processName}
+                                              </p>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <label className="space-y-2 text-sm">
+                                                <span>Completed Date</span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="date"
+                                                  value={
+                                                    refresherCompletionForm.completedDate
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherCompletionForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        completedDate:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="space-y-2 text-sm">
+                                                <span>Outcome</span>
+                                                <select
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  value={
+                                                    refresherCompletionForm.outcome
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherCompletionForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        outcome:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                >
+                                                  {completionOutcomes.map(
+                                                    (value) => (
+                                                      <option key={value}>
+                                                        {value}
+                                                      </option>
+                                                    ),
+                                                  )}
+                                                </select>
+                                              </label>
+                                            </div>
+                                            {refresherActionError ? (
+                                              <p className="text-sm text-red-600">
+                                                {refresherActionError}
+                                              </p>
+                                            ) : null}
+                                            <div className="flex flex-wrap gap-2">
+                                              <button
+                                                className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                                                disabled={savingRefresherAction}
+                                                type="submit"
+                                              >
+                                                {savingRefresherAction
+                                                  ? 'Saving...'
+                                                  : 'Save Completion'}
+                                              </button>
+                                              <button
+                                                className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                                                disabled={savingRefresherAction}
+                                                type="button"
+                                                onClick={closeCompleteRefresher}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </form>
+                                        </td>
+                                      </tr>
+                                    ) : null}
+                                    {isMovingRefresher ? (
+                                      <tr className="border-t border-slate-100 bg-amber-50/40">
+                                        <td className="px-4 py-4" colSpan={6}>
+                                          <form
+                                            className="space-y-3"
+                                            onSubmit={saveMoveRefresher}
+                                          >
+                                            <div>
+                                              <p className="font-medium text-slate-900">
+                                                {refresherMoveTarget?.action ===
+                                                'defer'
+                                                  ? 'Defer refresher'
+                                                  : 'Carry over refresher'}
+                                              </p>
+                                              <p className="text-sm text-slate-600">
+                                                {
+                                                  refresherMoveTarget
+                                                    ?.colleagueName
+                                                }{' '}
+                                                - {competency.processName}
+                                              </p>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <label className="space-y-2 text-sm">
+                                                <span>New Scheduled Date</span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="date"
+                                                  value={
+                                                    refresherMoveForm.newScheduledDate
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherMoveForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        newScheduledDate:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="space-y-2 text-sm">
+                                                <span>Deviation Reason</span>
+                                                <input
+                                                  className="w-full rounded-xl border border-slate-200 p-3"
+                                                  type="text"
+                                                  value={
+                                                    refresherMoveForm.deviationReason
+                                                  }
+                                                  onChange={(event) =>
+                                                    setRefresherMoveForm(
+                                                      (current) => ({
+                                                        ...current,
+                                                        deviationReason:
+                                                          event.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                            </div>
+                                            {refresherActionError ? (
+                                              <p className="text-sm text-red-600">
+                                                {refresherActionError}
+                                              </p>
+                                            ) : null}
+                                            <div className="flex flex-wrap gap-2">
+                                              <button
+                                                className="rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                                                disabled={savingRefresherAction}
+                                                type="submit"
+                                              >
+                                                {savingRefresherAction
+                                                  ? 'Saving...'
+                                                  : 'Save Change'}
+                                              </button>
+                                              <button
+                                                className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-700"
+                                                disabled={savingRefresherAction}
+                                                type="button"
+                                                onClick={closeMoveRefresher}
                                               >
                                                 Cancel
                                               </button>
