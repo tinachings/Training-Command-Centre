@@ -10,6 +10,7 @@ type RouteContext = {
 type ProcessUpdateBody = {
   name?: unknown;
   active?: unknown;
+  recommendedTrainingHours?: unknown;
 };
 
 type PrismaKnownRequestErrorLike = {
@@ -28,6 +29,30 @@ function cleanName(value: unknown) {
 
   const name = String(value ?? '').trim();
   return name || null;
+}
+
+function parseRecommendedHours(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const text = String(value).trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) {
+    return false;
+  }
+
+  const numericValue = Number(text);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return false;
+  }
+
+  return text;
 }
 
 function isPrismaError(error: unknown, code: string) {
@@ -51,10 +76,23 @@ export async function PATCH(request: Request, context: RouteContext) {
   const name = cleanName(body.name);
   const active =
     body.active === undefined ? undefined : body.active === true;
+  const recommendedTrainingHours = parseRecommendedHours(
+    body.recommendedTrainingHours,
+  );
 
   if (name === null) {
     return NextResponse.json(
       { error: 'Process name is required.' },
+      { status: 400 },
+    );
+  }
+
+  if (recommendedTrainingHours === false) {
+    return NextResponse.json(
+      {
+        error:
+          'Recommended training hours must be greater than zero with up to two decimal places.',
+      },
       { status: 400 },
     );
   }
@@ -67,12 +105,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: {
         ...(name !== undefined ? { name } : {}),
         ...(active !== undefined ? { active } : {}),
+        ...(recommendedTrainingHours !== undefined
+          ? { recommendedTrainingHours }
+          : {}),
       },
       select: {
         id: true,
         name: true,
         departmentId: true,
         active: true,
+        recommendedTrainingHours: true,
         department: {
           select: {
             name: true,
@@ -86,6 +128,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       name: process.name,
       departmentId: process.departmentId,
       active: process.active,
+      recommendedTrainingHours:
+        process.recommendedTrainingHours?.toString() ?? null,
       departmentName: process.department.name,
     });
   } catch (error) {

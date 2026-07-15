@@ -61,6 +61,7 @@ export async function GET(_request: Request, context: RouteContext) {
       id: true,
       name: true,
       departmentId: true,
+      recommendedTrainingHours: true,
     },
     orderBy: {
       name: 'asc',
@@ -169,6 +170,7 @@ export async function POST(request: Request, context: RouteContext) {
           ? new Date(body.trainingStartDate)
           : null,
         requestedBy,
+        recommendedTrainingHours: process.recommendedTrainingHours,
         riskAssessmentComplete: body.riskAssessmentComplete === true,
         sopComplete: body.sopComplete === true,
         buddyFeedbackScore: alreadyCompetent ? 5 : 3,

@@ -7,6 +7,9 @@ type SettingsDepartment = {
 };
 
 type SettingsProcess = {
+  recommendedTrainingHours?: {
+    toString(): string;
+  } | null;
   department: {
     name: string;
   };
@@ -61,6 +64,7 @@ export async function GET() {
         id: true,
         name: true,
         departmentId: true,
+        recommendedTrainingHours: true,
         department: {
           select: {
             name: true,
@@ -144,6 +148,8 @@ export async function GET() {
     departments,
     processes: processes.map(({ department, ...process }: SettingsProcess) => ({
       ...process,
+      recommendedTrainingHours:
+        process.recommendedTrainingHours?.toString() ?? null,
       departmentName: department.name,
     })),
     trainees: trainees.map(({ department, ...trainee }: SettingsTrainee) => ({

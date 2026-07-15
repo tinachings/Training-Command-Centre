@@ -14,6 +14,7 @@ type Process = {
   departmentId: number;
   departmentName: string;
   active: boolean;
+  recommendedTrainingHours: string | null;
 };
 
 type Role = {
@@ -47,6 +48,7 @@ type DepartmentEditForm = {
 type ProcessEditForm = {
   name: string;
   active: boolean;
+  recommendedTrainingHours: string;
 };
 
 type SettingsData = {
@@ -86,6 +88,8 @@ export default function SettingsPage() {
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [newProcessDepartmentId, setNewProcessDepartmentId] = useState('');
   const [newProcessName, setNewProcessName] = useState('');
+  const [newProcessRecommendedHours, setNewProcessRecommendedHours] =
+    useState('');
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonRoleIds, setNewPersonRoleIds] = useState<number[]>([]);
   const [editingDepartmentId, setEditingDepartmentId] = useState<number | null>(
@@ -100,6 +104,7 @@ export default function SettingsPage() {
   const [processEditForm, setProcessEditForm] = useState<ProcessEditForm>({
     name: '',
     active: true,
+    recommendedTrainingHours: '',
   });
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
   const [personEditForm, setPersonEditForm] = useState<PersonEditForm>({
@@ -379,7 +384,12 @@ export default function SettingsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ departmentId, name }),
+        body: JSON.stringify({
+          departmentId,
+          name,
+          recommendedTrainingHours:
+            newProcessRecommendedHours.trim() || null,
+        }),
       });
 
       if (!response.ok) {
@@ -399,6 +409,7 @@ export default function SettingsPage() {
           : current,
       );
       setNewProcessName('');
+      setNewProcessRecommendedHours('');
     } catch (caught) {
       setProcessError(
         caught instanceof Error ? caught.message : 'Failed to add process.',
@@ -414,6 +425,7 @@ export default function SettingsPage() {
     setProcessEditForm({
       name: process.name,
       active: process.active,
+      recommendedTrainingHours: process.recommendedTrainingHours ?? '',
     });
   }
 
@@ -423,6 +435,7 @@ export default function SettingsPage() {
     setProcessEditForm({
       name: '',
       active: true,
+      recommendedTrainingHours: '',
     });
   }
 
@@ -462,6 +475,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           name,
           active: processEditForm.active,
+          recommendedTrainingHours:
+            processEditForm.recommendedTrainingHours.trim() || null,
         }),
       });
 
@@ -849,7 +864,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <form
-              className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+              className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,12rem)_auto]"
               onSubmit={addProcess}
             >
               <select
@@ -875,6 +890,21 @@ export default function SettingsPage() {
                 onChange={(event) => setNewProcessName(event.target.value)}
                 placeholder="Process name"
               />
+              <label className="space-y-1 text-sm">
+                <span className="text-xs text-slate-500">
+                  Recommended Training Hours
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 p-3"
+                  inputMode="decimal"
+                  value={newProcessRecommendedHours}
+                  onChange={(event) =>
+                    setNewProcessRecommendedHours(event.target.value)
+                  }
+                  placeholder="Recommended hours"
+                />
+                <span className="text-xs text-slate-500">hours</span>
+              </label>
               <button
                 className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
                 disabled={savingProcess}
@@ -909,6 +939,9 @@ export default function SettingsPage() {
                               Process
                             </th>
                             <th className="pb-2 text-left font-medium">
+                              Recommended Hours
+                            </th>
+                            <th className="pb-2 text-left font-medium">
                               Status
                             </th>
                             <th className="pb-2 text-left font-medium">
@@ -939,6 +972,25 @@ export default function SettingsPage() {
                                       {processEditError}
                                     </p>
                                   ) : null}
+                                </td>
+                                <td className="py-2 pr-3 align-top">
+                                  <input
+                                    className="w-full rounded-xl border border-slate-200 p-2"
+                                    inputMode="decimal"
+                                    value={
+                                      processEditForm.recommendedTrainingHours
+                                    }
+                                    onChange={(event) =>
+                                      setProcessEditForm((current) => ({
+                                        ...current,
+                                        recommendedTrainingHours:
+                                          event.target.value,
+                                      }))
+                                    }
+                                  />
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    hours
+                                  </p>
                                 </td>
                                 <td className="py-2 pr-3 align-top">
                                   <select
@@ -985,6 +1037,11 @@ export default function SettingsPage() {
                                 className="border-t border-slate-100"
                               >
                                 <td className="py-2 pr-3">{process.name}</td>
+                                <td className="py-2 pr-3">
+                                  {process.recommendedTrainingHours
+                                    ? `${process.recommendedTrainingHours} h`
+                                    : 'Not Set'}
+                                </td>
                                 <td className="py-2 pr-3">
                                   {process.active ? 'Active' : 'Inactive'}
                                 </td>

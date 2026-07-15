@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 type ProcessBody = {
   departmentId?: unknown;
   name?: unknown;
+  recommendedTrainingHours?: unknown;
 };
 
 type PrismaKnownRequestErrorLike = {
@@ -13,6 +14,26 @@ type PrismaKnownRequestErrorLike = {
 function parseId(value: unknown) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function parseRecommendedHours(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const text = String(value).trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) {
+    return undefined;
+  }
+
+  const numericValue = Number(text);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return undefined;
+  }
+
+  return text;
 }
 
 function isUniqueConstraintError(error: unknown) {
@@ -31,6 +52,7 @@ export async function GET() {
       name: true,
       departmentId: true,
       active: true,
+      recommendedTrainingHours: true,
       department: {
         select: {
           name: true,
@@ -52,6 +74,8 @@ export async function GET() {
   return NextResponse.json(
     processes.map(({ department, ...process }) => ({
       ...process,
+      recommendedTrainingHours:
+        process.recommendedTrainingHours?.toString() ?? null,
       departmentName: department.name,
     })),
   );
@@ -61,6 +85,9 @@ export async function POST(request: Request) {
   const body = (await request.json()) as ProcessBody;
   const departmentId = parseId(body.departmentId);
   const name = String(body.name ?? '').trim();
+  const recommendedTrainingHours = parseRecommendedHours(
+    body.recommendedTrainingHours,
+  );
 
   if (!departmentId) {
     return NextResponse.json(
@@ -76,17 +103,29 @@ export async function POST(request: Request) {
     );
   }
 
+  if (recommendedTrainingHours === undefined) {
+    return NextResponse.json(
+      {
+        error:
+          'Recommended training hours must be greater than zero with up to two decimal places.',
+      },
+      { status: 400 },
+    );
+  }
+
   try {
     const process = await prisma.process.create({
       data: {
         departmentId,
         name,
+        recommendedTrainingHours,
       },
       select: {
         id: true,
         name: true,
         departmentId: true,
         active: true,
+        recommendedTrainingHours: true,
         department: {
           select: {
             name: true,
@@ -101,6 +140,8 @@ export async function POST(request: Request) {
         name: process.name,
         departmentId: process.departmentId,
         active: process.active,
+        recommendedTrainingHours:
+          process.recommendedTrainingHours?.toString() ?? null,
         departmentName: process.department.name,
       },
       { status: 201 },

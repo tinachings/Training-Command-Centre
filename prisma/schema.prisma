@@ -21,6 +21,7 @@ model Process {
   departmentId     Int
   department       Department       @relation(fields: [departmentId], references: [id])
   active           Boolean          @default(true)
+  recommendedTrainingHours Decimal? @db.Decimal(6, 2)
   traineeProcesses TraineeProcess[]
   createdAt        DateTime         @default(now())
 
@@ -103,6 +104,7 @@ model TraineeProcess {
   assessorObservationScore   Int?
   timeSpentInShifts          Int?
   readinessScore             Int?
+  recommendedTrainingHours   Decimal?            @db.Decimal(6, 2)
   readyForPreAssessment      Boolean             @default(false)
   scheduledPreAssessmentDate DateTime?
   preAssessmentDate          DateTime?
@@ -124,12 +126,29 @@ model TraineeProcess {
   refresherRecord            RefresherRecord?
   timelineEvents             TimelineEvent[]
   checkIns                   ProcessCheckIn[]
+  trainingHoursEntries       TrainingHoursEntry[]
 
   @@index([stage])
   @@index([assessmentOutcome])
   @@index([scheduledPreAssessmentDate])
   @@index([scheduledAssessmentDate])
   @@index([department])
+}
+
+model TrainingHoursEntry {
+  id               Int            @id @default(autoincrement())
+  traineeProcessId Int
+  traineeProcess   TraineeProcess @relation(fields: [traineeProcessId], references: [id], onDelete: Cascade)
+  trainingDate     DateTime
+  hours            Decimal        @db.Decimal(5, 2)
+  enteredBy        String?
+  lastEditedBy     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([traineeProcessId, trainingDate])
+  @@index([trainingDate])
+  @@index([traineeProcessId, trainingDate])
 }
 
 model TimelineEvent {

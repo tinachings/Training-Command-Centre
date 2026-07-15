@@ -254,10 +254,10 @@ export default function TraineeProfilePage() {
                           View
                         </Link>
                         <Link
-                          href={`/trainees/${trainee.id}/progress/${item.id}`}
+                          href={`/trainees/${trainee.id}/training-hours/${item.id}`}
                           className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"
                         >
-                          Update Progress
+                          Log Training Hours
                         </Link>
                         <Link
                           href={`/trainees/${trainee.id}/check-in/${item.id}`}
