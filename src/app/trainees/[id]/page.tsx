@@ -39,6 +39,12 @@ type TraineeProcess = {
   trainingBuddy: string | null;
   trainingStartDate: string | null;
   readinessScore: number | null;
+  cumulativeLoggedHours: string;
+  recommendedTrainingHours: string | null;
+  requires50PercentCheckIn: boolean;
+  requires90PercentCheckIn: boolean;
+  fiftyPercentReachedDate: string | null;
+  ninetyPercentReachedDate: string | null;
   nextAction: string | null;
   followUpFlag: string | null;
   competencySignOffDate: string | null;
@@ -141,7 +147,14 @@ export default function TraineeProfilePage() {
       item.followUpFlag !== "NONE" &&
       item.followUpActions.length === 0,
   );
-  const followUpCount = followUpActions.length + flaggedAssignments.length;
+  const milestoneAssignments = activeAssignments.filter(
+    (item) =>
+      item.requires50PercentCheckIn || item.requires90PercentCheckIn,
+  );
+  const followUpCount =
+    followUpActions.length +
+    flaggedAssignments.length +
+    milestoneAssignments.length;
 
   if (loading) {
     return (
@@ -237,13 +250,36 @@ export default function TraineeProfilePage() {
               ) : (
                 activeAssignments.map((item) => (
                   <tr key={item.id} className="border-t border-slate-200">
-                    <td className="py-3">{item.process.name}</td>
+                    <td className="py-3">
+                      <div className="space-y-2">
+                        <span>{item.process.name}</span>
+                        {item.requires50PercentCheckIn ||
+                        item.requires90PercentCheckIn ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {item.requires50PercentCheckIn ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                                50% Check-In Required
+                              </span>
+                            ) : null}
+                            {item.requires90PercentCheckIn ? (
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800">
+                                Final Check-In Required
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="py-3">{item.stage}</td>
                     <td className="py-3">{item.trainingBuddy ?? "TBD"}</td>
                     <td className="py-3">
                       {item.trainingStartDate?.slice(0, 10) ?? "TBD"}
                     </td>
-                    <td className="py-3">{item.readinessScore ?? 0}%</td>
+                    <td className="py-3">
+                      {item.readinessScore === null
+                        ? "Not Set"
+                        : `${item.readinessScore}%`}
+                    </td>
                     <td className="py-3">{item.nextAction || "-"}</td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-2 text-xs">

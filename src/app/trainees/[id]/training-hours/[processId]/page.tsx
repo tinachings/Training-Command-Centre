@@ -41,6 +41,11 @@ type TrainingHoursSummary = {
   cumulativeLoggedHours: string | null;
   remainingHours: string | null;
   readinessPercentage: number | null;
+  readinessScore: number | null;
+  requires50PercentCheckIn: boolean;
+  requires90PercentCheckIn: boolean;
+  fiftyPercentReachedDate: string | null;
+  ninetyPercentReachedDate: string | null;
   legacyReadinessScore: number | null;
   lastTrainingDate: string | null;
   elapsedEligibleWeeks: number;
@@ -325,6 +330,28 @@ export default function TrainingHoursPage() {
           logged, but readiness will show as Not Set until Process Management is
           updated.
         </p>
+      ) : null}
+
+      {summary.requires50PercentCheckIn ||
+      summary.requires90PercentCheckIn ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
+          {summary.requires50PercentCheckIn ? (
+            <span className="rounded-full bg-white px-3 py-1 font-medium">
+              50% Check-In Required
+            </span>
+          ) : null}
+          {summary.requires90PercentCheckIn ? (
+            <span className="rounded-full bg-white px-3 py-1 font-medium">
+              Final Check-In Required
+            </span>
+          ) : null}
+          <Link
+            href={`/trainees/${summary.colleague.id}/check-in/${summary.traineeProcessId}`}
+            className="rounded-full bg-slate-900 px-3 py-1 font-medium text-white"
+          >
+            Add Check-In
+          </Link>
+        </div>
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

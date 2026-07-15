@@ -17,6 +17,12 @@ type ProcessAssignment = {
   stage: string;
   status: string;
   readinessScore: number | null;
+  cumulativeLoggedHours: string;
+  recommendedTrainingHours: string | null;
+  requires50PercentCheckIn: boolean;
+  requires90PercentCheckIn: boolean;
+  fiftyPercentReachedDate: string | null;
+  ninetyPercentReachedDate: string | null;
   trainingBuddy: string | null;
   trainingStartDate: string | null;
   nextAction: string | null;
@@ -126,7 +132,17 @@ export default function ProcessDetailPage() {
         {[
           ['Stage', assignment.stage],
           ['Status', assignment.status || 'Active'],
-          ['Readiness', `${assignment.readinessScore ?? 0}%`],
+          [
+            'Readiness',
+            assignment.readinessScore === null
+              ? 'Not Set'
+              : `${assignment.readinessScore}%`,
+          ],
+          ['Logged Hours', assignment.cumulativeLoggedHours],
+          [
+            'Recommended Hours',
+            assignment.recommendedTrainingHours ?? 'Not Set',
+          ],
           ['Training Buddy', assignment.trainingBuddy ?? 'TBD'],
           [
             'Start Date',
@@ -147,6 +163,31 @@ export default function ProcessDetailPage() {
           </article>
         ))}
       </section>
+
+      {assignment.requires50PercentCheckIn ||
+      assignment.requires90PercentCheckIn ? (
+        <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">
+          <h3 className="font-semibold">Check-In Required</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {assignment.requires50PercentCheckIn ? (
+              <span className="rounded-full bg-white px-3 py-1 font-medium">
+                50% Check-In Required
+              </span>
+            ) : null}
+            {assignment.requires90PercentCheckIn ? (
+              <span className="rounded-full bg-white px-3 py-1 font-medium">
+                Final Check-In Required
+              </span>
+            ) : null}
+            <Link
+              href={`/trainees/${assignment.trainee.id}/check-in/${assignment.id}`}
+              className="rounded-full bg-slate-900 px-3 py-1 font-medium text-white"
+            >
+              Add Check-In
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <h3 className="text-lg font-semibold">Timeline</h3>

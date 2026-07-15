@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { upsertCompetencyRefresher } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
+import { deriveTrainingHours } from '@/lib/training-hours';
 
 type RouteContext = {
   params: Promise<{
@@ -67,6 +68,9 @@ export async function GET(_request: Request, context: RouteContext) {
       checkIns: {
         orderBy: [{ checkInDate: 'desc' }, { createdAt: 'desc' }],
       },
+      trainingHoursEntries: {
+        orderBy: { trainingDate: 'asc' },
+      },
     },
   });
 
@@ -77,7 +81,22 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
 
-  return NextResponse.json(assignment);
+  const derived = deriveTrainingHours(
+    assignment,
+    assignment.trainingHoursEntries,
+    assignment.checkIns,
+  );
+
+  return NextResponse.json({
+    ...assignment,
+    readinessScore: derived.readinessScore,
+    cumulativeLoggedHours: derived.cumulativeLoggedHours,
+    recommendedTrainingHours: derived.recommendedTrainingHours,
+    requires50PercentCheckIn: derived.requires50PercentCheckIn,
+    requires90PercentCheckIn: derived.requires90PercentCheckIn,
+    fiftyPercentReachedDate: derived.fiftyPercentReachedDate,
+    ninetyPercentReachedDate: derived.ninetyPercentReachedDate,
+  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -115,25 +134,19 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const body = await request.json();
-  const readinessScore =
-    body.readinessScore === undefined ? undefined : Number(body.readinessScore);
+
+  if (body.readinessScore !== undefined) {
+    return NextResponse.json(
+      { error: 'Readiness is calculated from logged training hours.' },
+      { status: 400 },
+    );
+  }
+
   const preAssessmentDate = optionalDate(body.preAssessmentDate);
   const assessmentDate = optionalDate(body.assessmentDate);
   const requestedCompetencySignOffDate = optionalDate(
     body.competencySignOffDate,
   );
-
-  if (
-    readinessScore !== undefined &&
-    (!Number.isFinite(readinessScore) ||
-      readinessScore < 0 ||
-      readinessScore > 100)
-  ) {
-    return NextResponse.json(
-      { error: 'Readiness score must be between 0 and 100.' },
-      { status: 400 },
-    );
-  }
 
   const stage =
     body.stage === undefined ? undefined : String(body.stage).trim();
@@ -170,7 +183,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: {
         ...(stage !== undefined ? { stage } : {}),
         ...(status !== undefined ? { status } : {}),
-        ...(readinessScore !== undefined ? { readinessScore } : {}),
         ...(nextAction !== undefined ? { nextAction } : {}),
         ...(followUpFlag !== undefined ? { followUpFlag } : {}),
         ...(body.preAssessmentOutcome !== undefined

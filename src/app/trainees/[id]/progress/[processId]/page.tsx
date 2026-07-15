@@ -9,7 +9,6 @@ type ProcessAssignment = {
   stage: string;
   nextAction: string | null;
   followUpFlag: string | null;
-  readinessScore: number | null;
   competencySignOffDate: string | null;
   process: {
     name: string;
@@ -47,7 +46,6 @@ export default function ProcessProgressPage() {
   const [stage, setStage] = useState('In Training');
   const [nextAction, setNextAction] = useState('');
   const [followUpFlag, setFollowUpFlag] = useState('NONE');
-  const [readinessScore, setReadinessScore] = useState('0');
   const [competencySignOffDate, setCompetencySignOffDate] = useState(
     todayInputValue(),
   );
@@ -84,7 +82,6 @@ export default function ProcessProgressPage() {
         setStage(data.stage);
         setNextAction(data.nextAction ?? '');
         setFollowUpFlag(data.followUpFlag ?? 'NONE');
-        setReadinessScore(String(data.readinessScore ?? 0));
         setCompetencySignOffDate(
           dateInputValue(data.competencySignOffDate) || todayInputValue(),
         );
@@ -120,7 +117,6 @@ export default function ProcessProgressPage() {
             stage,
             nextAction,
             followUpFlag,
-            readinessScore: Number(readinessScore),
             ...(stage === 'Competent' ? { competencySignOffDate } : {}),
           }),
         },
@@ -164,7 +160,7 @@ export default function ProcessProgressPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-sky-700">
-            Update Progress
+            Update Stage
           </p>
           <h2 className="mt-2 text-2xl font-semibold">
             {assignment.process.name}
@@ -222,17 +218,6 @@ export default function ProcessProgressPage() {
             <option value="CHASE">CHASE</option>
             <option value="ESCALATE">ESCALATE</option>
           </select>
-        </label>
-        <label className="space-y-2 text-sm">
-          <span>Readiness Score</span>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={readinessScore}
-            onChange={(event) => setReadinessScore(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
-          />
         </label>
         {stage === 'Competent' ? (
           <label className="space-y-2 text-sm">

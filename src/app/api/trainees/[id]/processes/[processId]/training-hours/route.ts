@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { deriveTrainingHours } from '@/lib/training-hours';
 
 type RouteContext = {
   params: Promise<{
@@ -49,6 +50,10 @@ type TrainingHoursAssignment = {
 type TrainingHoursEntry = {
   trainingDate: Date;
   hours: DecimalLike;
+};
+
+type TrainingHoursCheckIn = {
+  checkInDate: Date;
 };
 
 const maxDailyCents = 1200;
@@ -250,6 +255,29 @@ async function buildSummary(
         trainingDate: 'asc',
       },
     });
+  const checkIns: TrainingHoursCheckIn[] = await prisma.processCheckIn.findMany({
+    where: {
+      traineeProcessId: assignment.id,
+    },
+    select: {
+      checkInDate: true,
+    },
+    orderBy: {
+      checkInDate: 'asc',
+    },
+  });
+  const derived = deriveTrainingHours(
+    assignment,
+    trainingEntries.map((entry) => ({
+      traineeProcessId: assignment.id,
+      trainingDate: entry.trainingDate,
+      hours: entry.hours,
+    })),
+    checkIns.map((checkIn) => ({
+      traineeProcessId: assignment.id,
+      checkInDate: checkIn.checkInDate,
+    })),
+  );
 
   const entryCentsByDate = new Map(
     trainingEntries.map((entry) => [
@@ -276,21 +304,7 @@ async function buildSummary(
     (total, dateKey) => total + (entryCentsByDate.get(dateKey) ?? 0),
     0,
   );
-  const cumulativeLoggedCents = trainingEntries.reduce(
-    (total, entry) => total + (decimalStringToCents(entry.hours) ?? 0),
-    0,
-  );
-  const recommendedCents =
-    decimalStringToCents(assignment.recommendedTrainingHours) ??
-    decimalStringToCents(assignment.process.recommendedTrainingHours);
-  const remainingCents =
-    recommendedCents === null
-      ? null
-      : Math.max(0, recommendedCents - cumulativeLoggedCents);
-  const readinessPercentage =
-    recommendedCents && recommendedCents > 0
-      ? Math.min(100, Math.round((cumulativeLoggedCents / recommendedCents) * 100))
-      : null;
+  const cumulativeLoggedCents = derived.cumulativeLoggedCents;
   const lastEntry = trainingEntries[trainingEntries.length - 1] ?? null;
   const lastTrainingDate = lastEntry
     ? dateKeyFromDate(lastEntry.trainingDate)
@@ -371,7 +385,7 @@ async function buildSummary(
       : null,
     stage: assignment.stage,
     status: assignment.status,
-    recommendedTrainingHours: formatCents(recommendedCents),
+    recommendedTrainingHours: derived.recommendedTrainingHours,
     assignmentRecommendedTrainingHours:
       formatCents(decimalStringToCents(assignment.recommendedTrainingHours)),
     processRecommendedTrainingHours:
@@ -381,11 +395,15 @@ async function buildSummary(
     currentWeekBeginning: dateKeyFromDate(currentWeekBeginning),
     entries: selectedWeekEntries,
     selectedWeekTotalHours: formatCents(selectedWeekTotalCents),
-    cumulativeLoggedHours: formatCents(cumulativeLoggedCents),
-    remainingHours: formatCents(remainingCents),
-    readinessPercentage,
-    legacyReadinessScore:
-      trainingEntries.length === 0 ? assignment.readinessScore : null,
+    cumulativeLoggedHours: derived.cumulativeLoggedHours,
+    remainingHours: derived.remainingHours,
+    readinessPercentage: derived.readinessScore,
+    legacyReadinessScore: null,
+    readinessScore: derived.readinessScore,
+    requires50PercentCheckIn: derived.requires50PercentCheckIn,
+    requires90PercentCheckIn: derived.requires90PercentCheckIn,
+    fiftyPercentReachedDate: derived.fiftyPercentReachedDate,
+    ninetyPercentReachedDate: derived.ninetyPercentReachedDate,
     lastTrainingDate,
     elapsedEligibleWeeks,
     activeWeeks,
@@ -602,28 +620,38 @@ export async function PUT(request: Request, context: RouteContext) {
         traineeProcessId: assignment.id,
       },
       select: {
+        trainingDate: true,
         hours: true,
       },
     });
-    const cumulativeCents = totals.reduce(
-      (total, item) => total + (decimalStringToCents(item.hours) ?? 0),
-      0,
+    const checkIns = await transaction.processCheckIn.findMany({
+      where: {
+        traineeProcessId: assignment.id,
+      },
+      select: {
+        checkInDate: true,
+      },
+    });
+    const derived = deriveTrainingHours(
+      assignment,
+      totals.map((item) => ({
+        traineeProcessId: assignment.id,
+        trainingDate: item.trainingDate,
+        hours: item.hours,
+      })),
+      checkIns.map((checkIn) => ({
+        traineeProcessId: assignment.id,
+        checkInDate: checkIn.checkInDate,
+      })),
     );
-    const recommendedCents =
-      decimalStringToCents(assignment.recommendedTrainingHours) ??
-      decimalStringToCents(assignment.process.recommendedTrainingHours);
-    const readinessScore =
-      recommendedCents && recommendedCents > 0
-        ? Math.min(100, Math.round((cumulativeCents / recommendedCents) * 100))
-        : null;
 
-    if (readinessScore !== null) {
+    if (derived.readinessScore !== null) {
       await transaction.traineeProcess.update({
         where: {
           id: assignment.id,
         },
         data: {
-          readinessScore,
+          readinessScore: derived.readinessScore,
         },
       });
     }
