@@ -4,19 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navItems = [
-  ['Command Centre Dashboard', '/'],
-  ['Competency Dashboard', '/competency-dashboard'],
-  ['Production Matrix', '/production-matrix'],
-  ['Daily Control', '/daily-control'],
-  ['Colleagues', '/colleagues'],
+  ['Weekly Planner', '/'],
   ['Training Records', '/trainees'],
   ['Training Pipeline', '/training-pipeline'],
-  ['Weekly Planner', '/weekly-planner'],
+  ['Colleagues', '/colleagues'],
+  ['Refresher Dashboard', '/refreshers'],
+  ['Production Matrix', '/production-matrix'],
   ['Assessment Generator', '/assessment-generator'],
   ['Assessment Records', '/assessment-records'],
-  ['Refreshers', '/refreshers'],
-  ['Surfacing Dashboard', '/surfacing'],
-  ['Coating Dashboard', '/coating'],
   ['Team Leader Update', '/team-leader-update'],
   ['Reports', '/reports'],
   ['Settings', '/settings'],
