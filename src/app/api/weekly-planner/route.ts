@@ -24,6 +24,12 @@ type NewTrainingAssignment = {
   stage: string;
   status: string;
   trainingStartDate: Date | null;
+  trainingHoursEntries: {
+    trainingDate: Date;
+    hours: {
+      toString(): string;
+    };
+  }[];
   trainee: {
     name: string;
     trainingAssessor: string | null;
@@ -375,6 +381,21 @@ export async function GET(request: Request) {
         stage: true,
         status: true,
         trainingStartDate: true,
+        trainingHoursEntries: {
+          where: {
+            trainingDate: {
+              gte: weekBeginning,
+              lt: weekEnd,
+            },
+          },
+          select: {
+            trainingDate: true,
+            hours: true,
+          },
+          orderBy: {
+            trainingDate: 'asc',
+          },
+        },
         trainee: {
           select: {
             name: true,
@@ -578,11 +599,6 @@ export async function GET(request: Request) {
       plannedDate,
     ).some((key) => existingGeneratedItemKeys.has(key));
 
-  const scheduledAssessmentStatus = (assignment: ScheduledAssessmentAssignment) =>
-    assignment.stage === assignment.status
-      ? assignment.status
-      : `${assignment.stage} / ${assignment.status}`;
-
   const availableAssessor = (value: string | null) => {
     const assessor = value?.trim();
 
@@ -615,25 +631,29 @@ export async function GET(request: Request) {
     .map(
       (
         assignment: NewTrainingAssignment & { trainingStartDate: Date },
-      ): PlannerItemResponse => ({
-        id: -assignment.id,
-        weekCommencing: weekBeginning,
-        plannedDate: assignment.trainingStartDate,
-        department: assignment.trainee.department.name,
-        traineeName: assignment.trainee.name,
-        process: assignment.process.name,
-        activityType: 'New Training',
-        owner: assignment.trainee.trainingAssessor,
-        status:
-          assignment.stage === assignment.status
-            ? assignment.status
-            : `${assignment.stage} / ${assignment.status}`,
-        actualDate: null,
-        deviationReason: null,
-        followUpRequired: false,
-        followUpDate: null,
-        traineeProcessId: assignment.id,
-      }),
+      ): PlannerItemResponse => {
+        const firstLoggedTrainingDate =
+          assignment.trainingHoursEntries.find(
+            (entry) => Number(entry.hours.toString()) > 0,
+          )?.trainingDate ?? null;
+
+        return {
+          id: -assignment.id,
+          weekCommencing: weekBeginning,
+          plannedDate: assignment.trainingStartDate,
+          department: assignment.trainee.department.name,
+          traineeName: assignment.trainee.name,
+          process: assignment.process.name,
+          activityType: 'New Training',
+          owner: assignment.trainee.trainingAssessor,
+          status: firstLoggedTrainingDate ? 'Completed' : 'Planned',
+          actualDate: firstLoggedTrainingDate,
+          deviationReason: null,
+          followUpRequired: false,
+          followUpDate: null,
+          traineeProcessId: assignment.id,
+        };
+      },
     );
 
   const refresherItems = refresherRecords
@@ -680,7 +700,7 @@ export async function GET(request: Request) {
         process: refresher.traineeProcess.process.name || refresher.process,
         activityType: 'Refresher',
         owner: refresher.assignedAssessor,
-        status: refresher.scheduleStatus ?? 'Scheduled',
+        status: refresher.completedDate ? 'Completed' : 'Planned',
         actualDate: refresher.completedDate,
         deviationReason: null,
         followUpRequired: false,
@@ -728,7 +748,7 @@ export async function GET(request: Request) {
         process: assignment.process.name,
         activityType: 'Pre-Assessment',
         owner: scheduledAssessmentOwner(assignment),
-        status: scheduledAssessmentStatus(assignment),
+        status: assignment.preAssessmentDate ? 'Completed' : 'Planned',
         actualDate: assignment.preAssessmentDate,
         deviationReason: null,
         followUpRequired: false,
@@ -776,7 +796,7 @@ export async function GET(request: Request) {
         process: assignment.process.name,
         activityType: 'Assessment',
         owner: scheduledAssessmentOwner(assignment),
-        status: scheduledAssessmentStatus(assignment),
+        status: assignment.assessmentDate ? 'Completed' : 'Planned',
         actualDate: assignment.assessmentDate,
         deviationReason: null,
         followUpRequired: false,
