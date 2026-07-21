@@ -154,15 +154,9 @@ export default function SettingsPage() {
 
     async function loadSettings() {
       try {
-        const [settingsResponse, departments, processes, peopleData] =
-          await Promise.all([
-          fetch('/api/settings', {
-            cache: 'no-store',
-          }),
-          loadDepartments(),
-          loadProcesses(),
-          loadPeople(),
-        ]);
+        const settingsResponse = await fetch('/api/settings', {
+          cache: 'no-store',
+        });
 
         if (!settingsResponse.ok) {
           throw new Error('Failed to load settings.');
@@ -170,14 +164,8 @@ export default function SettingsPage() {
 
         const result = (await settingsResponse.json()) as SettingsData;
         if (!cancelled) {
-          setData({
-            ...result,
-            departments,
-            processes,
-            people: peopleData.people,
-            roles: peopleData.roles,
-          });
-          const activeDepartments = departments.filter(
+          setData(result);
+          const activeDepartments = result.departments.filter(
             (department) => department.active,
           );
           setNewProcessDepartmentId((current) =>

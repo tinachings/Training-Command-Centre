@@ -4,9 +4,14 @@ import { prisma } from '@/lib/prisma';
 type SettingsDepartment = {
   id: number;
   name: string;
+  active: boolean;
 };
 
 type SettingsProcess = {
+  id: number;
+  name: string;
+  departmentId: number;
+  active: boolean;
   recommendedTrainingHours?: {
     toString(): string;
   } | null;
@@ -32,6 +37,23 @@ type SettingsPair = {
   value: string;
 };
 
+type SettingsPerson = {
+  id: number;
+  name: string;
+  active: boolean;
+  roles: Array<{
+    role: {
+      id: number;
+      name: string;
+    };
+  }>;
+};
+
+type SettingsRole = {
+  id: number;
+  name: string;
+};
+
 export async function GET() {
   const [
     departments,
@@ -41,6 +63,8 @@ export async function GET() {
     trainingAssessors,
     trainingBuddies,
     settings,
+    people,
+    roles,
   ]: [
     SettingsDepartment[],
     SettingsProcess[],
@@ -49,11 +73,14 @@ export async function GET() {
     SettingsName[],
     SettingsName[],
     SettingsPair[],
+    SettingsPerson[],
+    SettingsRole[],
   ] = await prisma.$transaction([
     prisma.department.findMany({
       select: {
         id: true,
         name: true,
+        active: true,
       },
       orderBy: {
         name: 'asc',
@@ -64,6 +91,7 @@ export async function GET() {
         id: true,
         name: true,
         departmentId: true,
+        active: true,
         recommendedTrainingHours: true,
         department: {
           select: {
@@ -132,6 +160,40 @@ export async function GET() {
         value: true,
       },
     }),
+    prisma.person.findMany({
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: {
+            role: {
+              name: 'asc',
+            },
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    }),
+    prisma.role.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    }),
   ]);
 
   const traineeTeamLeaders = trainees
@@ -169,6 +231,11 @@ export async function GET() {
       ]),
     ).sort((left: string, right: string) => left.localeCompare(right)),
     trainingBuddies: trainingBuddies.map((buddy: SettingsName) => buddy.name),
+    people: people.map((person: SettingsPerson) => ({
+      ...person,
+      roles: person.roles.map((personRole) => personRole.role),
+    })),
+    roles,
     settings: settingValues,
   });
 }

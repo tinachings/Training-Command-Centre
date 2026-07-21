@@ -108,124 +108,101 @@ export async function GET(request: Request) {
     'Ready for Assessment',
   ];
 
-  const [assignments, entries, checkIns] = await Promise.all([
-    prisma.traineeProcess.findMany({
-      where: {
-        assignmentStatus: activeAssignmentStatus,
-        stage: {
-          in: visibleStages,
-        },
-        status: {
-          notIn: ['Archived', 'Competent'],
-        },
-        OR: [
-          { assessmentOutcome: null },
-          {
-            assessmentOutcome: {
-              not: 'Competent',
-            },
-          },
-        ],
-        trainee: {
-          archived: false,
-          ...(department
-            ? {
-                department: {
-                  name: department,
-                },
-              }
-            : {}),
-        },
+  const assignments = await prisma.traineeProcess.findMany({
+    where: {
+      assignmentStatus: activeAssignmentStatus,
+      stage: {
+        in: visibleStages,
       },
-      select: {
-        id: true,
-        traineeId: true,
-        stage: true,
-        status: true,
-        assessmentOutcome: true,
-        readinessScore: true,
-        recommendedTrainingHours: true,
-        trainingBuddy: true,
-        trainingStartDate: true,
-        scheduledPreAssessmentDate: true,
-        scheduledAssessmentDate: true,
-        assignedAssessor: true,
-        nextAction: true,
-        followUpFlag: true,
-        trainee: {
-          select: {
-            name: true,
-            trainingAssessor: true,
-            department: {
-              select: {
-                name: true,
+      status: {
+        notIn: ['Archived', 'Competent'],
+      },
+      OR: [
+        { assessmentOutcome: null },
+        {
+          assessmentOutcome: {
+            not: 'Competent',
+          },
+        },
+      ],
+      trainee: {
+        archived: false,
+        ...(department
+          ? {
+              department: {
+                name: department,
               },
+            }
+          : {}),
+      },
+    },
+    select: {
+      id: true,
+      traineeId: true,
+      stage: true,
+      status: true,
+      assessmentOutcome: true,
+      readinessScore: true,
+      recommendedTrainingHours: true,
+      trainingBuddy: true,
+      trainingStartDate: true,
+      scheduledPreAssessmentDate: true,
+      scheduledAssessmentDate: true,
+      assignedAssessor: true,
+      nextAction: true,
+      followUpFlag: true,
+      trainee: {
+        select: {
+          name: true,
+          trainingAssessor: true,
+          department: {
+            select: {
+              name: true,
             },
           },
         },
-        process: {
-          select: {
-            name: true,
-            recommendedTrainingHours: true,
-          },
+      },
+      process: {
+        select: {
+          name: true,
+          recommendedTrainingHours: true,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    }),
-    prisma.trainingHoursEntry.findMany({
-      where: {
-        traineeProcessId: {
-          in: [] as number[],
-        },
-      },
-      select: {
-        traineeProcessId: true,
-        trainingDate: true,
-        hours: true,
-      },
-    }),
-    prisma.processCheckIn.findMany({
-      where: {
-        traineeProcessId: {
-          in: [] as number[],
-        },
-      },
-      select: {
-        traineeProcessId: true,
-        checkInDate: true,
-      },
-    }),
-  ]);
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
 
   const assignmentIds = assignments.map((assignment) => assignment.id);
 
-  const [entriesForPipeline, checkInsForPipeline] = await Promise.all([
-    prisma.trainingHoursEntry.findMany({
-      where: {
-        traineeProcessId: {
-          in: assignmentIds,
-        },
-      },
-      select: {
-        traineeProcessId: true,
-        trainingDate: true,
-        hours: true,
-      },
-    }),
-    prisma.processCheckIn.findMany({
-      where: {
-        traineeProcessId: {
-          in: assignmentIds,
-        },
-      },
-      select: {
-        traineeProcessId: true,
-        checkInDate: true,
-      },
-    }),
-  ]);
+  const [entriesForPipeline, checkInsForPipeline] = assignmentIds.length
+    ? await Promise.all([
+        prisma.trainingHoursEntry.findMany({
+          where: {
+            traineeProcessId: {
+              in: assignmentIds,
+            },
+          },
+          select: {
+            traineeProcessId: true,
+            trainingDate: true,
+            hours: true,
+          },
+        }),
+        prisma.processCheckIn.findMany({
+          where: {
+            traineeProcessId: {
+              in: assignmentIds,
+            },
+          },
+          select: {
+            traineeProcessId: true,
+            checkInDate: true,
+          },
+        }),
+      ])
+    : [[], []];
 
   const derivedByAssignment = deriveTrainingHoursByAssignment(
     assignments.map((assignment) => ({
