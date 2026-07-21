@@ -83,6 +83,15 @@ export async function GET() {
       assignedAssessor: true,
       completedDate: true,
       outcome: true,
+      traineeProcess: {
+        select: {
+          trainee: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
     },
     orderBy: [
       {
@@ -95,8 +104,9 @@ export async function GET() {
   });
 
   return NextResponse.json(
-    refreshers.map((refresher) => ({
+    refreshers.map(({ traineeProcess, ...refresher }) => ({
       ...refresher,
+      traineeId: traineeProcess.trainee.id,
       status: normalizeRefresherStatus(
         refresher.status,
         refresher.refresherDueDate,
