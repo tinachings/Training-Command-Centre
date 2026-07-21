@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus, inactiveAssignmentMessage } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type RouteContext = {
@@ -119,6 +120,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     },
     select: {
       id: true,
+      assignmentStatus: true,
       traineeId: true,
       scheduledPreAssessmentDate: true,
       scheduledAssessmentDate: true,
@@ -140,6 +142,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: 'Training pipeline item not found.' },
       { status: 404 },
+    );
+  }
+
+  if (current.assignmentStatus !== activeAssignmentStatus) {
+    return NextResponse.json(
+      { error: inactiveAssignmentMessage() },
+      { status: 409 },
     );
   }
 

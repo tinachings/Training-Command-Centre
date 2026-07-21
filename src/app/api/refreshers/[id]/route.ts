@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { addMonths, refresherStatusForDueDate } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
@@ -201,6 +202,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     where: {
       id,
       traineeProcess: {
+        assignmentStatus: activeAssignmentStatus,
         status: {
           not: 'Archived',
         },

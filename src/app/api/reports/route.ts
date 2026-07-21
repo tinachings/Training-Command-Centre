@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { normalizeRefresherStatus } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
     }),
     prisma.traineeProcess.findMany({
       where: {
+        assignmentStatus: activeAssignmentStatus,
         status: {
           not: 'Archived',
         },
@@ -108,6 +110,7 @@ export async function GET(request: Request) {
           },
           {
             traineeProcess: {
+              assignmentStatus: activeAssignmentStatus,
               status: {
                 not: 'Archived',
               },
@@ -127,6 +130,7 @@ export async function GET(request: Request) {
       where: {
         ...(selectedDepartment ? { department: selectedDepartment } : {}),
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },
@@ -145,6 +149,7 @@ export async function GET(request: Request) {
       where: {
         ...(selectedDepartment ? { department: selectedDepartment } : {}),
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },
@@ -171,6 +176,7 @@ export async function GET(request: Request) {
           },
           {
             traineeProcess: {
+              assignmentStatus: activeAssignmentStatus,
               status: {
                 not: 'Archived',
               },
@@ -188,6 +194,7 @@ export async function GET(request: Request) {
           notIn: completedFollowUpStatuses,
         },
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },

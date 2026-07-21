@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { upsertCompetencyRefresher } from '@/lib/competency';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 const duplicateAssignmentMessage =
@@ -138,6 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
     where: {
       traineeId,
       processId: process.id,
+      assignmentStatus: activeAssignmentStatus,
       status: {
         notIn: ['Completed', 'Archived'],
       },

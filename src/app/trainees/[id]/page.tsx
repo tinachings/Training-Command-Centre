@@ -36,6 +36,10 @@ type TraineeProcess = {
   id: number;
   stage: string;
   status: string;
+  assignmentStatus: string;
+  removedAt: string | null;
+  removalNote: string | null;
+  removedBy: string | null;
   trainingBuddy: string | null;
   trainingStartDate: string | null;
   readinessScore: number | null;
@@ -89,6 +93,23 @@ export default function TraineeProfilePage() {
   const hasValidTraineeId = Number.isInteger(traineeId) && traineeId > 0;
   const [trainee, setTrainee] = useState<TraineeProfile | null>(null);
   const [loading, setLoading] = useState(hasValidTraineeId);
+  const [removeTarget, setRemoveTarget] = useState<TraineeProcess | null>(null);
+  const [removeReason, setRemoveReason] = useState<
+    "ASSIGNED_BY_MISTAKE" | "NO_LONGER_REQUIRED"
+  >("NO_LONGER_REQUIRED");
+  const [removeNote, setRemoveNote] = useState("");
+  const [removeError, setRemoveError] = useState("");
+  const [removePreview, setRemovePreview] = useState<{
+    assignedByMistake?: {
+      allowed: boolean;
+      blockingDependencies: Array<{ type: string; count: number }>;
+      safeCleanup: {
+        timelineEvents: number;
+        weeklyPlannerItems: number;
+      };
+    };
+  } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     if (!hasValidTraineeId) {
@@ -130,10 +151,18 @@ export default function TraineeProfilePage() {
     [trainee],
   );
   const activeAssignments = assignments.filter(
-    (item) => item.status !== "Competent" && item.status !== "Archived",
+    (item) =>
+      item.assignmentStatus === "ACTIVE" &&
+      item.status !== "Competent" &&
+      item.status !== "Archived",
   );
   const completedAssignments = assignments.filter(
-    (item) => item.status === "Competent" || item.stage === "Competent",
+    (item) =>
+      item.assignmentStatus === "ACTIVE" &&
+      (item.status === "Competent" || item.stage === "Competent"),
+  );
+  const noLongerRequiredAssignments = assignments.filter(
+    (item) => item.assignmentStatus === "NO_LONGER_REQUIRED",
   );
   const history = assignments.flatMap((item) => item.assessmentRecords);
   const plannerItems = assignments.flatMap((item) => item.weeklyPlannerItems);
@@ -155,6 +184,85 @@ export default function TraineeProfilePage() {
     followUpActions.length +
     flaggedAssignments.length +
     milestoneAssignments.length;
+
+  async function openRemoveProcess(item: TraineeProcess) {
+    setRemoveTarget(item);
+    setRemoveReason("NO_LONGER_REQUIRED");
+    setRemoveNote("");
+    setRemoveError("");
+    setRemovePreview(null);
+
+    try {
+      const response = await fetch(
+        `/api/trainees/${traineeId}/processes/${item.id}/remove`,
+        { cache: "no-store" },
+      );
+
+      if (response.ok) {
+        setRemovePreview(await response.json());
+      }
+    } catch {
+      setRemovePreview(null);
+    }
+  }
+
+  async function submitRemoveProcess() {
+    if (!trainee || !removeTarget) {
+      return;
+    }
+
+    setRemoveError("");
+
+    if (removeReason === "NO_LONGER_REQUIRED" && !removeNote.trim()) {
+      setRemoveError("Enter a short reason before confirming.");
+      return;
+    }
+
+    setRemoving(true);
+
+    try {
+      const response = await fetch(
+        `/api/trainees/${trainee.id}/processes/${removeTarget.id}/remove`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            reason: removeReason,
+            note: removeNote,
+            user: trainee.trainingAssessor || trainee.teamLeader || "User",
+          }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        recommendation?: string;
+      } | null;
+
+      if (!response.ok) {
+        setRemoveError(
+          [data?.error, data?.recommendation].filter(Boolean).join(" ") ||
+            "Failed to remove process.",
+        );
+        return;
+      }
+
+      const reload = await fetch(`/api/trainees/${trainee.id}`, {
+        cache: "no-store",
+      });
+
+      if (reload.ok) {
+        setTrainee((await reload.json()) as TraineeProfile);
+      }
+
+      setRemoveTarget(null);
+    } catch {
+      setRemoveError("Failed to remove process.");
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -301,6 +409,13 @@ export default function TraineeProfilePage() {
                         >
                           Add Check-In
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => void openRemoveProcess(item)}
+                          className="rounded-full bg-rose-50 px-3 py-1 text-rose-700"
+                        >
+                          Remove Process
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -379,6 +494,21 @@ export default function TraineeProfilePage() {
         </article>
       </section>
 
+      {noLongerRequiredAssignments.length ? (
+        <section className="rounded-2xl border border-slate-200 p-4">
+          <h3 className="text-lg font-semibold">No Longer Required</h3>
+          <ul className="mt-3 space-y-2 text-sm text-slate-700">
+            {noLongerRequiredAssignments.map((item) => (
+              <li key={item.id} className="rounded-xl bg-slate-50 p-3">
+                {item.process.name} | Removed{" "}
+                {item.removedAt?.slice(0, 10) ?? "date not recorded"} |{" "}
+                {item.removalNote || "No reason recorded"}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section className="rounded-2xl border border-slate-200 p-4">
         <h3 className="text-lg font-semibold">Follow-Up Actions</h3>
         <ul className="mt-3 space-y-2 text-sm text-slate-700">
@@ -413,6 +543,98 @@ export default function TraineeProfilePage() {
           ))}
         </ul>
       </section>
+
+      {removeTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold">
+              Remove {removeTarget.process.name}
+            </h3>
+            <div className="mt-4 grid gap-3 text-sm">
+              <label className="flex gap-3 rounded-xl border border-slate-200 p-3">
+                <input
+                  type="radio"
+                  checked={removeReason === "NO_LONGER_REQUIRED"}
+                  onChange={() => setRemoveReason("NO_LONGER_REQUIRED")}
+                />
+                <span>
+                  <strong>No longer required</strong>
+                  <br />
+                  Preserve all history, stop future work, and show N in the
+                  Production Matrix.
+                </span>
+              </label>
+              <label className="flex gap-3 rounded-xl border border-slate-200 p-3">
+                <input
+                  type="radio"
+                  checked={removeReason === "ASSIGNED_BY_MISTAKE"}
+                  onChange={() => setRemoveReason("ASSIGNED_BY_MISTAKE")}
+                />
+                <span>
+                  <strong>Assigned by mistake</strong>
+                  <br />
+                  Permanently remove only if there is no training or competency
+                  history.
+                </span>
+              </label>
+            </div>
+            {removeReason === "ASSIGNED_BY_MISTAKE" &&
+            removePreview?.assignedByMistake ? (
+              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                {removePreview.assignedByMistake.allowed ? (
+                  <p>
+                    Safe to permanently remove. Cleanup includes{" "}
+                    {removePreview.assignedByMistake.safeCleanup.timelineEvents}{" "}
+                    timeline event(s) and{" "}
+                    {
+                      removePreview.assignedByMistake.safeCleanup
+                        .weeklyPlannerItems
+                    }{" "}
+                    planner item(s).
+                  </p>
+                ) : (
+                  <p>
+                    Permanent deletion is blocked because history exists. Use No
+                    longer required to preserve it.
+                  </p>
+                )}
+              </div>
+            ) : null}
+            {removeReason === "NO_LONGER_REQUIRED" ? (
+              <label className="mt-4 block space-y-2 text-sm">
+                <span>Removal reason</span>
+                <textarea
+                  className="min-h-24 w-full rounded-xl border border-slate-200 p-3"
+                  value={removeNote}
+                  onChange={(event) => setRemoveNote(event.target.value)}
+                />
+              </label>
+            ) : null}
+            {removeError ? (
+              <p className="mt-3 text-sm font-medium text-rose-700">
+                {removeError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRemoveTarget(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => void submitRemoveProcess()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+              >
+                {removing ? "Removing..." : "Confirm Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   normalizeRefresherStatus,
   refresherStatusForDueDate,
 } from '@/lib/competency';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type RefresherBody = {
@@ -58,6 +59,7 @@ export async function GET() {
   const refreshers = await prisma.refresherRecord.findMany({
     where: {
       traineeProcess: {
+        assignmentStatus: activeAssignmentStatus,
         status: {
           not: 'Archived',
         },
@@ -136,6 +138,7 @@ export async function POST(request: Request) {
   const assignment = await prisma.traineeProcess.findFirst({
     where: {
       id: traineeProcessId,
+      assignmentStatus: activeAssignmentStatus,
       status: {
         not: 'Archived',
       },

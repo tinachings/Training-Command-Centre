@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type TrainingPipelineAssignment = {
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
   const assignments: TrainingPipelineAssignment[] =
     await prisma.traineeProcess.findMany({
     where: {
+      assignmentStatus: activeAssignmentStatus,
       stage: {
         in: visibleStages,
       },

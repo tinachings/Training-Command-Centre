@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type AssessmentRecordQueryResult = {
@@ -35,8 +36,9 @@ export async function GET() {
   const records: AssessmentRecordQueryResult[] =
     await prisma.assessmentRecord.findMany({
     where: {
-      traineeProcess: {
-        status: {
+        traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
+          status: {
           not: 'Archived',
         },
         trainee: {

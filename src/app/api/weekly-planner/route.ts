@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type PlannerItemResponse = {
@@ -316,6 +317,7 @@ export async function GET(request: Request) {
           },
           {
             traineeProcess: {
+              assignmentStatus: activeAssignmentStatus,
               status: {
                 not: 'Archived',
               },
@@ -360,6 +362,7 @@ export async function GET(request: Request) {
         status: {
           notIn: ['Archived', 'Completed', 'Competent'],
         },
+        assignmentStatus: activeAssignmentStatus,
         stage: {
           not: 'Competent',
         },
@@ -400,6 +403,7 @@ export async function GET(request: Request) {
           lt: weekEnd,
         },
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },
@@ -446,6 +450,7 @@ export async function GET(request: Request) {
     }),
     prisma.traineeProcess.findMany({
       where: {
+        assignmentStatus: activeAssignmentStatus,
         status: {
           not: 'Archived',
         },

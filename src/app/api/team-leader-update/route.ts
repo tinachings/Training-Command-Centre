@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 const completedStatuses = ['Completed', 'Closed'];
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
     }),
     prisma.traineeProcess.findMany({
       where: {
+        assignmentStatus: activeAssignmentStatus,
         status: {
           not: 'Archived',
         },
@@ -155,6 +157,7 @@ export async function GET(request: Request) {
           not: 'Completed',
         },
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },

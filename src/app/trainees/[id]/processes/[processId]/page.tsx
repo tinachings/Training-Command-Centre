@@ -16,6 +16,10 @@ type ProcessAssignment = {
   id: number;
   stage: string;
   status: string;
+  assignmentStatus: string;
+  removedAt: string | null;
+  removalNote: string | null;
+  removedBy: string | null;
   readinessScore: number | null;
   cumulativeLoggedHours: string;
   recommendedTrainingHours: string | null;
@@ -50,6 +54,13 @@ export default function ProcessDetailPage() {
     processId > 0;
   const [assignment, setAssignment] = useState<ProcessAssignment | null>(null);
   const [loading, setLoading] = useState(hasValidIds);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removeReason, setRemoveReason] = useState<
+    'ASSIGNED_BY_MISTAKE' | 'NO_LONGER_REQUIRED'
+  >('NO_LONGER_REQUIRED');
+  const [removeNote, setRemoveNote] = useState('');
+  const [removeError, setRemoveError] = useState('');
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     if (!hasValidIds) {
@@ -89,6 +100,70 @@ export default function ProcessDetailPage() {
     return () => controller.abort();
   }, [hasValidIds, processId, traineeId]);
 
+  async function submitRemoveProcess() {
+    if (!assignment) {
+      return;
+    }
+
+    setRemoveError('');
+
+    if (removeReason === 'NO_LONGER_REQUIRED' && !removeNote.trim()) {
+      setRemoveError('Enter a short reason before confirming.');
+      return;
+    }
+
+    setRemoving(true);
+
+    try {
+      const response = await fetch(
+        `/api/trainees/${assignment.trainee.id}/processes/${assignment.id}/remove`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            reason: removeReason,
+            note: removeNote,
+            user: 'User',
+          }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        recommendation?: string;
+      } | null;
+
+      if (!response.ok) {
+        setRemoveError(
+          [data?.error, data?.recommendation].filter(Boolean).join(' ') ||
+            'Failed to remove process.',
+        );
+        return;
+      }
+
+      if (removeReason === 'ASSIGNED_BY_MISTAKE') {
+        window.location.href = `/trainees/${assignment.trainee.id}`;
+        return;
+      }
+
+      const reload = await fetch(
+        `/api/trainees/${assignment.trainee.id}/processes/${assignment.id}`,
+        { cache: 'no-store' },
+      );
+
+      if (reload.ok) {
+        setAssignment((await reload.json()) as ProcessAssignment);
+      }
+
+      setRemoveOpen(false);
+    } catch {
+      setRemoveError('Failed to remove process.');
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -126,7 +201,27 @@ export default function ProcessDetailPage() {
         >
           Back to profile
         </Link>
+        {assignment.assignmentStatus === 'ACTIVE' ? (
+          <button
+            type="button"
+            onClick={() => setRemoveOpen(true)}
+            className="rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700"
+          >
+            Remove Process
+          </button>
+        ) : null}
       </div>
+
+      {assignment.assignmentStatus === 'NO_LONGER_REQUIRED' ? (
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <h3 className="font-semibold text-slate-900">No Longer Required</h3>
+          <p className="mt-2">
+            Removed {assignment.removedAt?.slice(0, 10) ?? 'date not recorded'}
+            {assignment.removedBy ? ` by ${assignment.removedBy}` : ''}.
+          </p>
+          <p className="mt-1">{assignment.removalNote || 'No reason recorded.'}</p>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
@@ -204,6 +299,74 @@ export default function ProcessDetailPage() {
           )}
         </ul>
       </section>
+
+      {removeOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold">
+              Remove {assignment.process.name}
+            </h3>
+            <div className="mt-4 grid gap-3 text-sm">
+              <label className="flex gap-3 rounded-xl border border-slate-200 p-3">
+                <input
+                  type="radio"
+                  checked={removeReason === 'NO_LONGER_REQUIRED'}
+                  onChange={() => setRemoveReason('NO_LONGER_REQUIRED')}
+                />
+                <span>
+                  <strong>No longer required</strong>
+                  <br />
+                  Preserve history and stop future training/refresher work.
+                </span>
+              </label>
+              <label className="flex gap-3 rounded-xl border border-slate-200 p-3">
+                <input
+                  type="radio"
+                  checked={removeReason === 'ASSIGNED_BY_MISTAKE'}
+                  onChange={() => setRemoveReason('ASSIGNED_BY_MISTAKE')}
+                />
+                <span>
+                  <strong>Assigned by mistake</strong>
+                  <br />
+                  Permanently remove only if no meaningful history exists.
+                </span>
+              </label>
+            </div>
+            {removeReason === 'NO_LONGER_REQUIRED' ? (
+              <label className="mt-4 block space-y-2 text-sm">
+                <span>Removal reason</span>
+                <textarea
+                  className="min-h-24 w-full rounded-xl border border-slate-200 p-3"
+                  value={removeNote}
+                  onChange={(event) => setRemoveNote(event.target.value)}
+                />
+              </label>
+            ) : null}
+            {removeError ? (
+              <p className="mt-3 text-sm font-medium text-rose-700">
+                {removeError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRemoveOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => void submitRemoveProcess()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+              >
+                {removing ? 'Removing...' : 'Confirm Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

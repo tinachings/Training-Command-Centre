@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 const duplicateTraineeMessage = 'A trainee with this name, department and shift already exists.';
@@ -14,6 +15,7 @@ type TraineeListFollowUpAction = {
 type TraineeListProcess = {
   stage: string;
   status: string;
+  assignmentStatus: string;
   followUpFlag: string | null;
   followUpActions: TraineeListFollowUpAction[];
 };
@@ -39,6 +41,7 @@ export async function GET() {
         select: {
           stage: true,
           status: true,
+          assignmentStatus: true,
           followUpFlag: true,
           followUpActions: {
             select: {
@@ -58,19 +61,23 @@ export async function GET() {
         (process: TraineeListProcess) =>
           process.status !== 'Competent' &&
           process.status !== 'Archived' &&
-          process.stage !== 'Competent',
+          process.stage !== 'Competent' &&
+          process.assignmentStatus === activeAssignmentStatus,
       ).length,
       competentProcessCount: traineeProcesses.filter(
         (process: TraineeListProcess) =>
-          process.status === 'Competent' || process.stage === 'Competent',
+          process.assignmentStatus === activeAssignmentStatus &&
+          (process.status === 'Competent' || process.stage === 'Competent'),
       ).length,
       followUpRequired: traineeProcesses.some(
         (process: TraineeListProcess) =>
+          process.assignmentStatus === activeAssignmentStatus &&
           (process.followUpFlag && process.followUpFlag !== 'NONE') ||
-          process.followUpActions.some(
-            (action: TraineeListFollowUpAction) =>
-              action.status !== 'Completed' && action.status !== 'Closed',
-          ),
+          (process.assignmentStatus === activeAssignmentStatus &&
+            process.followUpActions.some(
+              (action: TraineeListFollowUpAction) =>
+                action.status !== 'Completed' && action.status !== 'Closed',
+            )),
       ),
     })),
   );

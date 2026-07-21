@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus, inactiveAssignmentMessage } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 
 type RouteContext = {
@@ -44,6 +45,13 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: 'Process assignment not found for this trainee.' },
       { status: 404 },
+    );
+  }
+
+  if (assignment.assignmentStatus !== activeAssignmentStatus) {
+    return NextResponse.json(
+      { error: inactiveAssignmentMessage() },
+      { status: 409 },
     );
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus, inactiveAssignmentMessage } from '@/lib/assignment-state';
 import { upsertCompetencyRefresher } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 import { deriveTrainingHours } from '@/lib/training-hours';
@@ -80,7 +81,6 @@ export async function GET(_request: Request, context: RouteContext) {
       { status: 404 },
     );
   }
-
   const derived = deriveTrainingHours(
     assignment,
     assignment.trainingHoursEntries,
@@ -130,6 +130,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: 'Process assignment not found for this trainee.' },
       { status: 404 },
+    );
+  }
+
+  if (assignment.assignmentStatus !== activeAssignmentStatus) {
+    return NextResponse.json(
+      { error: inactiveAssignmentMessage() },
+      { status: 409 },
     );
   }
 

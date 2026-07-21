@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus } from '@/lib/assignment-state';
 import { upsertCompetencyRefresher } from '@/lib/competency';
 import { prisma } from '@/lib/prisma';
 
@@ -22,6 +23,7 @@ const assessmentGeneratorTraineeSelect = {
   },
   traineeProcesses: {
     where: {
+      assignmentStatus: activeAssignmentStatus,
       status: {
         not: 'Archived',
       },
@@ -71,6 +73,7 @@ export async function GET() {
         archived: false,
         traineeProcesses: {
           some: {
+            assignmentStatus: activeAssignmentStatus,
             status: {
               not: 'Archived',
             },
@@ -85,6 +88,7 @@ export async function GET() {
     prisma.assessmentRecord.count({
       where: {
         traineeProcess: {
+          assignmentStatus: activeAssignmentStatus,
           status: {
             not: 'Archived',
           },
@@ -151,6 +155,7 @@ export async function POST(request: Request) {
     where: {
       id: traineeProcessId,
       traineeId,
+      assignmentStatus: activeAssignmentStatus,
       status: {
         not: 'Archived',
       },

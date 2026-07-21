@@ -2,10 +2,13 @@ type DecimalLike = {
   toString(): string;
 };
 
+const activeAssignmentStatus = 'ACTIVE';
+
 export type TrainingHoursAssignment = {
   id: number;
   stage: string;
   status: string;
+  assignmentStatus?: string | null;
   recommendedTrainingHours: DecimalLike | string | null;
   process: {
     recommendedTrainingHours: DecimalLike | string | null;
@@ -92,6 +95,10 @@ function isCompletedAssignment(assignment: TrainingHoursAssignment) {
   );
 }
 
+function isActiveAssignment(assignment: TrainingHoursAssignment) {
+  return (assignment.assignmentStatus ?? activeAssignmentStatus) === activeAssignmentStatus;
+}
+
 function thresholdReachedDate(
   entries: TrainingHoursEntryInput[],
   recommendedCents: number,
@@ -167,6 +174,7 @@ export function deriveTrainingHours(
   const eligibleForMilestones =
     recommendedCents !== null &&
     hasLoggedTrainingHours &&
+    isActiveAssignment(assignment) &&
     !isCompletedAssignment(assignment);
 
   return {

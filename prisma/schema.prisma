@@ -105,6 +105,10 @@ model TraineeProcess {
   timeSpentInShifts          Int?
   readinessScore             Int?
   recommendedTrainingHours   Decimal?            @db.Decimal(6, 2)
+  assignmentStatus           String              @default("ACTIVE")
+  removedAt                  DateTime?
+  removalNote                String?
+  removedBy                  String?
   readyForPreAssessment      Boolean             @default(false)
   scheduledPreAssessmentDate DateTime?
   preAssessmentDate          DateTime?
@@ -130,6 +134,7 @@ model TraineeProcess {
 
   @@index([stage])
   @@index([assessmentOutcome])
+  @@index([assignmentStatus])
   @@index([scheduledPreAssessmentDate])
   @@index([scheduledAssessmentDate])
   @@index([department])

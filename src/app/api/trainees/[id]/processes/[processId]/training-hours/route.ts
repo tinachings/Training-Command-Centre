@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activeAssignmentStatus, inactiveAssignmentMessage } from '@/lib/assignment-state';
 import { prisma } from '@/lib/prisma';
 import { deriveTrainingHours } from '@/lib/training-hours';
 
@@ -28,6 +29,7 @@ type TrainingHoursAssignment = {
   id: number;
   stage: string;
   status: string;
+  assignmentStatus: string;
   trainingStartDate: Date | null;
   competencySignOffDate: Date | null;
   readinessScore: number | null;
@@ -208,6 +210,7 @@ async function getAssignment(traineeId: number, traineeProcessId: number) {
       id: true,
       stage: true,
       status: true,
+      assignmentStatus: true,
       trainingStartDate: true,
       competencySignOffDate: true,
       readinessScore: true,
@@ -448,7 +451,6 @@ export async function GET(request: Request, context: RouteContext) {
       { status: 404 },
     );
   }
-
   const today = currentUtcDate();
   const currentWeekBeginning = weekCommencingFromDate(today);
   const weekBeginningParam = new URL(request.url).searchParams.get(
@@ -491,6 +493,13 @@ export async function PUT(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: 'Process assignment not found for this trainee.' },
       { status: 404 },
+    );
+  }
+
+  if (assignment.assignmentStatus !== activeAssignmentStatus) {
+    return NextResponse.json(
+      { error: inactiveAssignmentMessage() },
+      { status: 409 },
     );
   }
 
