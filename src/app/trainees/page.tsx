@@ -39,6 +39,7 @@ async function fetchTrainees(signal?: AbortSignal) {
 
 export default function TraineesPage() {
   const defaultDepartmentApplied = useRef(false);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const [trainees, setTrainees] = useState<TraineeListItem[]>([]);
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('All');
@@ -47,6 +48,7 @@ export default function TraineesPage() {
   const [status, setStatus] = useState('Active');
   const [error, setError] = useState('');
   const [archivingId, setArchivingId] = useState<number | null>(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,24 +81,65 @@ export default function TraineesPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (openActionMenuId === null) {
+      return;
+    }
+
+    function closeOpenMenu(event: PointerEvent) {
+      if (
+        actionMenuRef.current &&
+        !actionMenuRef.current.contains(event.target as Node)
+      ) {
+        setOpenActionMenuId(null);
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOpenMenu);
+
+    return () => document.removeEventListener('pointerdown', closeOpenMenu);
+  }, [openActionMenuId]);
+
+  function firstNameSortValue(name: string) {
+    return name.trim().split(/\s+/)[0]?.toLocaleLowerCase() ?? '';
+  }
+
   const filteredTrainees = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return trainees.filter((trainee) => {
-      if (trainee.archived && status === 'Active') return false;
-      if (!trainee.archived && status === 'Archived') return false;
-      if (query && !trainee.name.toLowerCase().includes(query)) return false;
-      if (department !== 'All' && trainee.department.name !== department) {
-        return false;
-      }
-      if (teamLeader !== 'All' && trainee.teamLeader !== teamLeader) {
-        return false;
-      }
-      if (assessor !== 'All' && trainee.trainingAssessor !== assessor) {
-        return false;
-      }
-      return true;
-    });
+    return trainees
+      .filter((trainee) => {
+        if (trainee.archived && status === 'Active') return false;
+        if (!trainee.archived && status === 'Archived') return false;
+        if (query && !trainee.name.toLowerCase().includes(query)) return false;
+        if (department !== 'All' && trainee.department.name !== department) {
+          return false;
+        }
+        if (teamLeader !== 'All' && trainee.teamLeader !== teamLeader) {
+          return false;
+        }
+        if (assessor !== 'All' && trainee.trainingAssessor !== assessor) {
+          return false;
+        }
+        return true;
+      })
+      .toSorted((left, right) => {
+        const firstNameOrder = firstNameSortValue(left.name).localeCompare(
+          firstNameSortValue(right.name),
+          undefined,
+          { sensitivity: 'base' },
+        );
+
+        if (firstNameOrder !== 0) {
+          return firstNameOrder;
+        }
+
+        const fullNameOrder = left.name.localeCompare(right.name, undefined, {
+          sensitivity: 'base',
+        });
+
+        return fullNameOrder !== 0 ? fullNameOrder : left.id - right.id;
+      });
   }, [assessor, department, search, status, teamLeader, trainees]);
 
   const archive = async (id: number) => {
@@ -217,80 +260,109 @@ export default function TraineesPage() {
         <table className="min-w-full text-sm">
           <thead className="text-slate-500">
             <tr>
-              <th className="pb-3 text-center">Colleague Name</th>
-              <th className="pb-3 text-center">Department</th>
-              <th className="pb-3 text-left">Team Leader</th>
-              <th className="pb-3 text-left">Shift Leader</th>
+              <th className="pb-3 text-left">Colleague Name</th>
+              <th className="pb-3 text-left">Department</th>
               <th className="pb-3 text-left">Shift</th>
               <th className="pb-3 text-center">Active Training</th>
               <th className="pb-3 text-center">Competent Processes</th>
-              <th className="pb-3 text-left">Current Status</th>
-              <th className="pb-3 text-left">Follow-Up Required</th>
+              <th className="pb-3 text-center">Follow-Up Required</th>
               <th className="pb-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredTrainees.map((trainee) => (
-              <tr
-                key={trainee.id}
-                className="border-t border-slate-100 align-top"
-              >
-                <td className="py-3 text-center font-medium text-slate-900">
-                  {trainee.name}
-                </td>
-                <td className="py-3 text-center">
-                  {trainee.department.name}
-                </td>
-                <td className="py-3">{trainee.teamLeader || '-'}</td>
-                <td className="py-3">{trainee.shiftLeader || '-'}</td>
-                <td className="py-3">{trainee.shift || '-'}</td>
-                <td className="py-3 text-center">
-                  {trainee.activeProcessCount}
-                </td>
-                <td className="py-3 text-center">
-                  {trainee.competentProcessCount}
-                </td>
-                <td className="py-3">
-                  {trainee.archived ? 'Archived' : 'Active'}
-                </td>
-                <td className="py-3">
-                  {trainee.followUpRequired ? 'Yes' : 'No'}
-                </td>
-                <td className="py-3">
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <Link
-                      href={`/trainees/${trainee.id}`}
-                      className="rounded-full bg-sky-50 px-3 py-1 text-sky-700"
-                    >
-                      View Profile
-                    </Link>
-                    <Link
-                      href={`/trainees/${trainee.id}/edit`}
-                      className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"
-                    >
-                      Edit Colleague
-                    </Link>
-                    <Link
-                      href={`/trainees/${trainee.id}/assign`}
-                      className="rounded-full bg-amber-50 px-3 py-1 text-amber-700"
-                    >
-                      Assign Process
-                    </Link>
-                    <button
-                      onClick={() => void archive(trainee.id)}
-                      disabled={trainee.archived || archivingId === trainee.id}
-                      className="rounded-full bg-rose-50 px-3 py-1 text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {archivingId === trainee.id
-                        ? 'Archiving...'
-                        : trainee.archived
-                          ? 'Archived'
-                          : 'Archive Trainee'}
-                    </button>
-                  </div>
+            {filteredTrainees.length === 0 ? (
+              <tr className="border-t border-slate-100">
+                <td className="py-3 text-slate-600" colSpan={7}>
+                  No colleagues match the current filters.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredTrainees.map((trainee) => {
+                const hasOpenMenu = openActionMenuId === trainee.id;
+
+                return (
+                  <tr
+                    key={trainee.id}
+                    className="border-t border-slate-100 align-top"
+                  >
+                    <td className="py-3 font-medium text-slate-900">
+                      <span className="whitespace-nowrap">{trainee.name}</span>
+                    </td>
+                    <td className="py-3">{trainee.department.name}</td>
+                    <td className="py-3">{trainee.shift || '-'}</td>
+                    <td className="py-3 text-center">
+                      {trainee.activeProcessCount}
+                    </td>
+                    <td className="py-3 text-center">
+                      {trainee.competentProcessCount}
+                    </td>
+                    <td className="py-3 text-center">
+                      {trainee.followUpRequired ? 'Yes' : 'No'}
+                    </td>
+                    <td className="py-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Link
+                          href={`/trainees/${trainee.id}`}
+                          className="rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-700"
+                        >
+                          View Profile
+                        </Link>
+                        <div
+                          ref={hasOpenMenu ? actionMenuRef : null}
+                          className="relative inline-block"
+                        >
+                          <button
+                            type="button"
+                            aria-expanded={hasOpenMenu}
+                            onClick={() =>
+                              setOpenActionMenuId((current) =>
+                                current === trainee.id ? null : trainee.id,
+                              )
+                            }
+                            className="rounded-full bg-slate-900 px-3 py-1 font-medium text-white"
+                          >
+                            Actions
+                          </button>
+                          {hasOpenMenu ? (
+                            <div className="absolute right-0 z-10 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                              <Link
+                                href={`/trainees/${trainee.id}/edit`}
+                                className="block rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                              >
+                                Edit Colleague
+                              </Link>
+                              {!trainee.archived ? (
+                                <>
+                                  <Link
+                                    href={`/trainees/${trainee.id}/assign`}
+                                    className="block rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+                                  >
+                                    Assign Process
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      void archive(trainee.id);
+                                    }}
+                                    disabled={archivingId === trainee.id}
+                                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {archivingId === trainee.id
+                                      ? 'Archiving...'
+                                      : 'Archive Colleague'}
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

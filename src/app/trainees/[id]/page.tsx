@@ -79,6 +79,7 @@ type TraineeProfile = {
   trainingAssessor: string | null;
   shift: string | null;
   startDate: string | null;
+  archived: boolean;
   createdAt: string;
   department: {
     name: string;
@@ -315,6 +316,7 @@ export default function TraineeProfilePage() {
           ["Team Leader", trainee.teamLeader],
           ["Shift Leader", trainee.shiftLeader],
           ["Shift", trainee.shift],
+          ["Status", trainee.archived ? "Archived" : "Active"],
           ["Active Training", String(activeAssignments.length)],
           ["Competent Processes", String(completedAssignments.length)],
           ["Follow-Up Required", followUpCount > 0 ? "Yes" : "No"],
