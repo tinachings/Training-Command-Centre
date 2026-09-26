@@ -405,3 +405,35 @@ test('Refresher Dashboard source stays read-only', () => {
     assert.equal(source.includes(label), false);
   });
 });
+
+
+test('Refresher Dashboard exposes monthly completion history', () => {
+  const source = readFileSync('src/app/refreshers/page.tsx', 'utf8');
+
+  assert.match(source, /View completion history/);
+  assert.match(source, /type="month"/);
+  assert.match(source, /\/api\/refreshers\/history\?month=/);
+  assert.match(source, /Completion History/);
+});
+
+test('refresher completion flow preserves immutable history in timeline events', () => {
+  const source = readFileSync(
+    'src/app/api/refreshers/[id]/route.ts',
+    'utf8',
+  );
+
+  assert.match(source, /eventType: 'Refresher Completed'/);
+  assert.match(source, /existingPreviousCompletion/);
+  assert.match(source, /existingCompletion/);
+});
+
+test('refresher history API combines timeline history with current completion records', () => {
+  const source = readFileSync(
+    'src/app/api/refreshers/history/route.ts',
+    'utf8',
+  );
+
+  assert.match(source, /timelineEvent\.findMany/);
+  assert.match(source, /refresherRecord\.findMany/);
+  assert.match(source, /departmentCounts/);
+});
