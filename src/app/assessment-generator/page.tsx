@@ -268,10 +268,7 @@ export default function AssessmentGeneratorPage() {
   }
 
   function regenerateSummary() {
-    const generated = buildAssessmentSummary({
-      ...draft,
-      assessmentSummary: undefined as never,
-    });
+    const generated = buildAssessmentSummary(draft);
     setAssessmentSummary(generated);
     setFinalised(false);
   }
