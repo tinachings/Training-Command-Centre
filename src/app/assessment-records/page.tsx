@@ -25,6 +25,24 @@ function formatDate(value: string) {
   return value.slice(0, 10);
 }
 
+function currentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function formatMonthLabel(value: string) {
+  const [year, month] = value.split('-').map(Number);
+
+  if (!year || !month) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 export default function AssessmentRecordsPage() {
   const [assessmentRecords, setAssessmentRecords] = useState<
     AssessmentRecord[]
@@ -35,6 +53,7 @@ export default function AssessmentRecordsPage() {
   const [department, setDepartment] = useState('All');
   const [type, setType] = useState('All');
   const [outcome, setOutcome] = useState('All');
+  const [month, setMonth] = useState(() => currentMonthKey());
 
   useEffect(() => {
     let cancelled = false;
@@ -82,9 +101,10 @@ export default function AssessmentRecordsPage() {
           (department === 'All' ||
             item.departmentName === department) &&
           (type === 'All' || item.assessmentType === type) &&
-          (outcome === 'All' || item.outcome === outcome),
+          (outcome === 'All' || item.outcome === outcome) &&
+          (month === 'All' || item.date.slice(0, 7) === month),
       ),
-    [assessmentRecords, search, department, type, outcome],
+    [assessmentRecords, search, department, type, outcome, month],
   );
 
   const summary = {
@@ -116,6 +136,37 @@ export default function AssessmentRecordsPage() {
           Searchable history of completed assessments and pre-assessments
           generated from the workflow.
         </p>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-600">
+            {month === 'All' ? 'All assessment history' : formatMonthLabel(month)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Summary cards and records below reflect the selected month.
+          </p>
+        </div>
+        <label className="text-sm font-medium text-slate-700">
+          Month
+          <div className="mt-1 flex gap-2">
+            <input
+              type="month"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+              value={month === 'All' ? '' : month}
+              max={currentMonthKey()}
+              onChange={(event) =>
+                setMonth(event.target.value || currentMonthKey())
+              }
+            />
+            <button
+              type="button"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:border-sky-200 hover:text-sky-700"
+              onClick={() => setMonth(month === 'All' ? currentMonthKey() : 'All')}
+            >
+              {month === 'All' ? 'Current Month' : 'All History'}
+            </button>
+          </div>
+        </label>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
