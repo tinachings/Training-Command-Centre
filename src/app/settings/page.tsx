@@ -29,28 +29,6 @@ type Person = {
   roles: Role[];
 };
 
-type PeopleResponse = {
-  people: Person[];
-  roles: Role[];
-};
-
-type PersonEditForm = {
-  name: string;
-  active: boolean;
-  roleIds: number[];
-};
-
-type DepartmentEditForm = {
-  name: string;
-  active: boolean;
-};
-
-type ProcessEditForm = {
-  name: string;
-  active: boolean;
-  recommendedTrainingHours: string;
-};
-
 type SettingsData = {
   departments: Department[];
   processes: Process[];
@@ -69,43 +47,89 @@ type SettingsData = {
   settings: Record<string, string>;
 };
 
+type SettingsTab =
+  | 'overview'
+  | 'departments'
+  | 'processes'
+  | 'people'
+  | 'workflow';
+
+type StatusFilter = 'All' | 'Active' | 'Inactive';
+
+type DepartmentEditForm = {
+  name: string;
+  active: boolean;
+};
+
+type ProcessEditForm = {
+  name: string;
+  active: boolean;
+  recommendedTrainingHours: string;
+};
+
+type PersonEditForm = {
+  name: string;
+  active: boolean;
+  roleIds: number[];
+};
+
+const tabItems: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'departments', label: 'Departments' },
+  { id: 'processes', label: 'Processes' },
+  { id: 'people', label: 'People & Roles' },
+  { id: 'workflow', label: 'Workflow Settings' },
+];
+
+function statusBadge(active: boolean) {
+  return active
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+    : 'bg-slate-100 text-slate-600 ring-slate-200';
+}
+
+function countActive<T extends { active: boolean }>(items: T[]) {
+  return items.filter((item) => item.active).length;
+}
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const [loading, setLoading] = useState(true);
-  const [savingDepartment, setSavingDepartment] = useState(false);
-  const [savingDepartmentEdit, setSavingDepartmentEdit] = useState(false);
-  const [savingProcess, setSavingProcess] = useState(false);
-  const [savingProcessEdit, setSavingProcessEdit] = useState(false);
-  const [savingPerson, setSavingPerson] = useState(false);
-  const [savingPersonEdit, setSavingPersonEdit] = useState(false);
   const [error, setError] = useState('');
-  const [departmentError, setDepartmentError] = useState('');
-  const [departmentEditError, setDepartmentEditError] = useState('');
-  const [processError, setProcessError] = useState('');
-  const [processEditError, setProcessEditError] = useState('');
-  const [personError, setPersonError] = useState('');
-  const [personEditError, setPersonEditError] = useState('');
+
   const [newDepartmentName, setNewDepartmentName] = useState('');
-  const [newProcessDepartmentId, setNewProcessDepartmentId] = useState('');
-  const [newProcessName, setNewProcessName] = useState('');
-  const [newProcessRecommendedHours, setNewProcessRecommendedHours] =
-    useState('');
-  const [newPersonName, setNewPersonName] = useState('');
-  const [newPersonRoleIds, setNewPersonRoleIds] = useState<number[]>([]);
+  const [savingDepartment, setSavingDepartment] = useState(false);
+  const [departmentError, setDepartmentError] = useState('');
   const [editingDepartmentId, setEditingDepartmentId] = useState<number | null>(
     null,
   );
   const [departmentEditForm, setDepartmentEditForm] =
-    useState<DepartmentEditForm>({
-      name: '',
-      active: true,
-    });
+    useState<DepartmentEditForm>({ name: '', active: true });
+
+  const [selectedProcessDepartmentId, setSelectedProcessDepartmentId] =
+    useState('');
+  const [processSearch, setProcessSearch] = useState('');
+  const [processStatus, setProcessStatus] = useState<StatusFilter>('All');
+  const [newProcessName, setNewProcessName] = useState('');
+  const [newProcessRecommendedHours, setNewProcessRecommendedHours] =
+    useState('');
+  const [savingProcess, setSavingProcess] = useState(false);
+  const [processError, setProcessError] = useState('');
   const [editingProcessId, setEditingProcessId] = useState<number | null>(null);
   const [processEditForm, setProcessEditForm] = useState<ProcessEditForm>({
     name: '',
     active: true,
     recommendedTrainingHours: '',
   });
+
+  const [peopleSearch, setPeopleSearch] = useState('');
+  const [peopleRole, setPeopleRole] = useState('All');
+  const [peopleStatus, setPeopleStatus] = useState<StatusFilter>('All');
+  const [showAddPerson, setShowAddPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
+  const [newPersonRoleIds, setNewPersonRoleIds] = useState<number[]>([]);
+  const [savingPerson, setSavingPerson] = useState(false);
+  const [personError, setPersonError] = useState('');
   const [editingPersonId, setEditingPersonId] = useState<number | null>(null);
   const [personEditForm, setPersonEditForm] = useState<PersonEditForm>({
     name: '',
@@ -113,89 +137,128 @@ export default function SettingsPage() {
     roleIds: [],
   });
 
-  async function loadDepartments() {
-    const response = await fetch('/api/departments', {
-      cache: 'no-store',
-    });
+  async function loadSettings() {
+    setLoading(true);
+    setError('');
 
-    if (!response.ok) {
-      throw new Error('Failed to load departments.');
+    try {
+      const response = await fetch('/api/settings', { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error('Failed to load settings.');
+      }
+
+      const result = (await response.json()) as SettingsData;
+      setData(result);
+
+      const activeDepartments = result.departments.filter(
+        (department) => department.active,
+      );
+
+      setSelectedProcessDepartmentId((current) => {
+        const valid = result.departments.some(
+          (department) => String(department.id) === current,
+        );
+
+        if (valid) {
+          return current;
+        }
+
+        return activeDepartments[0]
+          ? String(activeDepartments[0].id)
+          : result.departments[0]
+            ? String(result.departments[0].id)
+            : '';
+      });
+    } catch {
+      setError('Failed to load settings.');
+    } finally {
+      setLoading(false);
     }
-
-    return (await response.json()) as Department[];
-  }
-
-  async function loadProcesses() {
-    const response = await fetch('/api/processes', {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to load processes.');
-    }
-
-    return (await response.json()) as Process[];
-  }
-
-  async function loadPeople() {
-    const response = await fetch('/api/people', {
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to load people.');
-    }
-
-    return (await response.json()) as PeopleResponse;
   }
 
   useEffect(() => {
-    let cancelled = false;
+    void loadSettings();
+  }, []);
 
-    async function loadSettings() {
-      try {
-        const settingsResponse = await fetch('/api/settings', {
-          cache: 'no-store',
-        });
+  const activeDepartments = useMemo(
+    () => data?.departments.filter((department) => department.active) ?? [],
+    [data],
+  );
 
-        if (!settingsResponse.ok) {
-          throw new Error('Failed to load settings.');
-        }
+  const selectedDepartment = useMemo(
+    () =>
+      data?.departments.find(
+        (department) => String(department.id) === selectedProcessDepartmentId,
+      ) ?? null,
+    [data, selectedProcessDepartmentId],
+  );
 
-        const result = (await settingsResponse.json()) as SettingsData;
-        if (!cancelled) {
-          setData(result);
-          const activeDepartments = result.departments.filter(
-            (department) => department.active,
-          );
-          setNewProcessDepartmentId((current) =>
-            current ||
-            (activeDepartments[0] ? String(activeDepartments[0].id) : ''),
-          );
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Failed to load settings.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+  const visibleProcesses = useMemo(() => {
+    if (!data || !selectedProcessDepartmentId) {
+      return [];
     }
 
-    void loadSettings();
+    const query = processSearch.trim().toLowerCase();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return data.processes.filter((process) => {
+      if (String(process.departmentId) !== selectedProcessDepartmentId) {
+        return false;
+      }
+
+      if (query && !process.name.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (processStatus === 'Active' && !process.active) {
+        return false;
+      }
+
+      if (processStatus === 'Inactive' && process.active) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data, processSearch, processStatus, selectedProcessDepartmentId]);
+
+  const visiblePeople = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    const query = peopleSearch.trim().toLowerCase();
+
+    return data.people.filter((person) => {
+      if (query && !person.name.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (
+        peopleRole !== 'All' &&
+        !person.roles.some((role) => role.name === peopleRole)
+      ) {
+        return false;
+      }
+
+      if (peopleStatus === 'Active' && !person.active) {
+        return false;
+      }
+
+      if (peopleStatus === 'Inactive' && person.active) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data, peopleRole, peopleSearch, peopleStatus]);
 
   async function addDepartment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDepartmentError('');
 
     const name = newDepartmentName.trim();
+
     if (!name) {
       setDepartmentError('Department name is required.');
       return;
@@ -206,9 +269,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/departments', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
 
@@ -219,23 +280,8 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to add department.');
       }
 
-      const departments = await loadDepartments();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              departments,
-            }
-          : current,
-      );
       setNewDepartmentName('');
-      const activeDepartments = departments.filter(
-        (department) => department.active,
-      );
-      setNewProcessDepartmentId((current) =>
-        current ||
-        (activeDepartments[0] ? String(activeDepartments[0].id) : ''),
-      );
+      await loadSettings();
     } catch (caught) {
       setDepartmentError(
         caught instanceof Error ? caught.message : 'Failed to add department.',
@@ -247,56 +293,26 @@ export default function SettingsPage() {
 
   function startEditingDepartment(department: Department) {
     setEditingDepartmentId(department.id);
-    setDepartmentEditError('');
+    setDepartmentError('');
     setDepartmentEditForm({
       name: department.name,
       active: department.active,
     });
   }
 
-  function cancelEditingDepartment() {
-    setEditingDepartmentId(null);
-    setDepartmentEditError('');
-    setDepartmentEditForm({
-      name: '',
-      active: true,
-    });
-  }
-
-  async function saveDepartmentEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setDepartmentEditError('');
-
-    if (!editingDepartmentId || !data) {
-      setDepartmentEditError('Select a department to edit.');
-      return;
-    }
-
+  async function saveDepartmentEdit(departmentId: number) {
+    setDepartmentError('');
     const name = departmentEditForm.name.trim();
+
     if (!name) {
-      setDepartmentEditError('Department name is required.');
+      setDepartmentError('Department name is required.');
       return;
     }
-
-    const duplicateDepartment = data.departments.find(
-      (department) =>
-        department.id !== editingDepartmentId &&
-        department.name.toLowerCase() === name.toLowerCase(),
-    );
-
-    if (duplicateDepartment) {
-      setDepartmentEditError('Department already exists.');
-      return;
-    }
-
-    setSavingDepartmentEdit(true);
 
     try {
-      const response = await fetch(`/api/departments/${editingDepartmentId}`, {
+      const response = await fetch(`/api/departments/${departmentId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           active: departmentEditForm.active,
@@ -310,40 +326,14 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to update department.');
       }
 
-      const departments = await loadDepartments();
-      const processes = await loadProcesses();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              departments,
-              processes,
-            }
-          : current,
-      );
-
-      const activeDepartments = departments.filter(
-        (department) => department.active,
-      );
-      setNewProcessDepartmentId((current) =>
-        activeDepartments.some(
-          (department) => String(department.id) === current,
-        )
-          ? current
-          : activeDepartments[0]
-            ? String(activeDepartments[0].id)
-            : '',
-      );
-
-      cancelEditingDepartment();
+      setEditingDepartmentId(null);
+      await loadSettings();
     } catch (caught) {
-      setDepartmentEditError(
+      setDepartmentError(
         caught instanceof Error
           ? caught.message
           : 'Failed to update department.',
       );
-    } finally {
-      setSavingDepartmentEdit(false);
     }
   }
 
@@ -351,7 +341,7 @@ export default function SettingsPage() {
     event.preventDefault();
     setProcessError('');
 
-    const departmentId = Number(newProcessDepartmentId);
+    const departmentId = Number(selectedProcessDepartmentId);
     const name = newProcessName.trim();
 
     if (!Number.isInteger(departmentId) || departmentId <= 0) {
@@ -369,9 +359,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/processes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           departmentId,
           name,
@@ -387,17 +375,9 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to add process.');
       }
 
-      const processes = await loadProcesses();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              processes,
-            }
-          : current,
-      );
       setNewProcessName('');
       setNewProcessRecommendedHours('');
+      await loadSettings();
     } catch (caught) {
       setProcessError(
         caught instanceof Error ? caught.message : 'Failed to add process.',
@@ -409,7 +389,7 @@ export default function SettingsPage() {
 
   function startEditingProcess(process: Process) {
     setEditingProcessId(process.id);
-    setProcessEditError('');
+    setProcessError('');
     setProcessEditForm({
       name: process.name,
       active: process.active,
@@ -417,49 +397,20 @@ export default function SettingsPage() {
     });
   }
 
-  function cancelEditingProcess() {
-    setEditingProcessId(null);
-    setProcessEditError('');
-    setProcessEditForm({
-      name: '',
-      active: true,
-      recommendedTrainingHours: '',
-    });
-  }
-
-  async function saveProcessEdit(
-    event: FormEvent<HTMLFormElement>,
-    process: Process,
-  ) {
-    event.preventDefault();
-    setProcessEditError('');
+  async function saveProcessEdit(process: Process) {
+    setProcessError('');
 
     const name = processEditForm.name.trim();
+
     if (!name) {
-      setProcessEditError('Process name is required.');
+      setProcessError('Process name is required.');
       return;
     }
-
-    const duplicateProcess = data?.processes.find(
-      (item) =>
-        item.id !== process.id &&
-        item.departmentId === process.departmentId &&
-        item.name.toLowerCase() === name.toLowerCase(),
-    );
-
-    if (duplicateProcess) {
-      setProcessEditError('Process already exists for this department.');
-      return;
-    }
-
-    setSavingProcessEdit(true);
 
     try {
       const response = await fetch(`/api/processes/${process.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           active: processEditForm.active,
@@ -475,23 +426,31 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to update process.');
       }
 
-      const processes = await loadProcesses();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              processes,
-            }
-          : current,
-      );
-      cancelEditingProcess();
+      setEditingProcessId(null);
+      await loadSettings();
     } catch (caught) {
-      setProcessEditError(
+      setProcessError(
         caught instanceof Error ? caught.message : 'Failed to update process.',
       );
-    } finally {
-      setSavingProcessEdit(false);
     }
+  }
+
+  function toggleRole(roleId: number, edit = false) {
+    if (edit) {
+      setPersonEditForm((current) => ({
+        ...current,
+        roleIds: current.roleIds.includes(roleId)
+          ? current.roleIds.filter((id) => id !== roleId)
+          : [...current.roleIds, roleId],
+      }));
+      return;
+    }
+
+    setNewPersonRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId],
+    );
   }
 
   async function addPerson(event: FormEvent<HTMLFormElement>) {
@@ -499,6 +458,7 @@ export default function SettingsPage() {
     setPersonError('');
 
     const name = newPersonName.trim();
+
     if (!name) {
       setPersonError('Person name is required.');
       return;
@@ -509,9 +469,7 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/people', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, roleIds: newPersonRoleIds }),
       });
 
@@ -522,18 +480,10 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to add person.');
       }
 
-      const peopleData = await loadPeople();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              people: peopleData.people,
-              roles: peopleData.roles,
-            }
-          : current,
-      );
       setNewPersonName('');
       setNewPersonRoleIds([]);
+      setShowAddPerson(false);
+      await loadSettings();
     } catch (caught) {
       setPersonError(
         caught instanceof Error ? caught.message : 'Failed to add person.',
@@ -543,17 +493,9 @@ export default function SettingsPage() {
     }
   }
 
-  function toggleNewPersonRole(roleId: number) {
-    setNewPersonRoleIds((current) =>
-      current.includes(roleId)
-        ? current.filter((id) => id !== roleId)
-        : [...current, roleId],
-    );
-  }
-
   function startEditingPerson(person: Person) {
     setEditingPersonId(person.id);
-    setPersonEditError('');
+    setPersonError('');
     setPersonEditForm({
       name: person.name,
       active: person.active,
@@ -561,48 +503,20 @@ export default function SettingsPage() {
     });
   }
 
-  function cancelEditingPerson() {
-    setEditingPersonId(null);
-    setPersonEditError('');
-    setPersonEditForm({
-      name: '',
-      active: true,
-      roleIds: [],
-    });
-  }
-
-  function toggleEditPersonRole(roleId: number) {
-    setPersonEditForm((current) => ({
-      ...current,
-      roleIds: current.roleIds.includes(roleId)
-        ? current.roleIds.filter((id) => id !== roleId)
-        : [...current.roleIds, roleId],
-    }));
-  }
-
-  async function savePersonEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPersonEditError('');
-
-    if (!editingPersonId) {
-      setPersonEditError('Select a person to edit.');
-      return;
-    }
+  async function savePersonEdit(personId: number) {
+    setPersonError('');
 
     const name = personEditForm.name.trim();
+
     if (!name) {
-      setPersonEditError('Person name is required.');
+      setPersonError('Person name is required.');
       return;
     }
 
-    setSavingPersonEdit(true);
-
     try {
-      const response = await fetch(`/api/people/${editingPersonId}`, {
+      const response = await fetch(`/api/people/${personId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           active: personEditForm.active,
@@ -617,177 +531,490 @@ export default function SettingsPage() {
         throw new Error(result?.error || 'Failed to update person.');
       }
 
-      const peopleData = await loadPeople();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              people: peopleData.people,
-              roles: peopleData.roles,
-            }
-          : current,
-      );
-      cancelEditingPerson();
+      setEditingPersonId(null);
+      await loadSettings();
     } catch (caught) {
-      setPersonEditError(
+      setPersonError(
         caught instanceof Error ? caught.message : 'Failed to update person.',
       );
-    } finally {
-      setSavingPersonEdit(false);
     }
   }
 
-  const settingsCards = useMemo(() => {
-    if (!data) {
-      return [];
-    }
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-sm text-slate-500">Loading settings...</p>
+      </div>
+    );
+  }
 
-    const setupDays = data.settings.setupOverdueAfterDays ?? '2';
-    const chaseDays = data.settings.chaseAfterDays ?? '5';
-    const priorityDays = data.settings.priorityAfterReadyDays ?? '5';
+  if (error || !data) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-sm text-rose-700">{error || 'Settings unavailable.'}</p>
+      </div>
+    );
+  }
 
-    return [
-      [
-        'Departments',
-        data.departments.map((item) => item.name).join(', '),
-      ],
-      [
-        'Processes',
-        data.processes
-          .slice(0, 8)
-          .map((item) => item.name)
-          .join(', '),
-      ],
-      ['Team Leaders', data.teamLeaders.join(', ')],
-      ['Training Assessors', data.trainingAssessors.join(', ')],
-      ['Training Buddies', data.trainingBuddies.join(', ')],
-      [
-        'Follow-up thresholds',
-        `Setup overdue ${setupDays} days · Chase after ${chaseDays} days · Priority after ${priorityDays} days`,
-      ],
-      [
-        'Readiness target shifts',
-        `${data.settings.readinessTargetShifts ?? '5'} shifts`,
-      ],
-    ];
-  }, [data]);
-
-  const processesByDepartment = useMemo(() => {
-    if (!data) {
-      return [];
-    }
-
-    return data.departments.map((department) => ({
-      department,
-      processes: data.processes.filter(
-        (process) => process.departmentId === department.id,
-      ),
-    }));
-  }, [data]);
-
-  const activeDepartments = useMemo(() => {
-    if (!data) {
-      return [];
-    }
-
-    return data.departments.filter((department) => department.active);
-  }, [data]);
+  const activeDepartmentCount = countActive(data.departments);
+  const activeProcessCount = countActive(data.processes);
+  const activePeopleCount = countActive(data.people);
+  const inactiveProcessCount = data.processes.length - activeProcessCount;
+  const inactivePeopleCount = data.people.length - activePeopleCount;
 
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <h2 className="text-2xl font-semibold">Settings</h2>
         <p className="mt-2 text-slate-600">
-          Editable-looking management tables and settings groups for the
-          command centre workflow.
+          Manage departments, processes, people, roles and operational settings
+          used throughout the Training Command Centre.
         </p>
       </div>
-      {loading ? (
-        <p className="text-sm text-slate-500">Loading settings...</p>
-      ) : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {!loading && !error && data ? (
-        <>
-          <div className="grid gap-4 md:grid-cols-2">
-            {settingsCards.map(([title, value]) => (
-              <article
-                key={title}
-                className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-              >
-                <h3 className="text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  {value || 'None configured'}
-                </p>
-              </article>
-            ))}
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+        {tabItems.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              activeTab === tab.id
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' ? (
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab('departments')}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:border-sky-200 hover:bg-sky-50"
+            >
+              <p className="text-sm font-medium text-slate-500">Departments</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {data.departments.length}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {activeDepartmentCount} active ·{' '}
+                {data.departments.length - activeDepartmentCount} inactive
+              </p>
+              <p className="mt-4 text-sm font-medium text-sky-700">
+                Manage departments →
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('processes')}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:border-sky-200 hover:bg-sky-50"
+            >
+              <p className="text-sm font-medium text-slate-500">Processes</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {data.processes.length}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {activeProcessCount} active · {inactiveProcessCount} inactive
+              </p>
+              <p className="mt-4 text-sm font-medium text-sky-700">
+                Manage processes →
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('people')}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:border-sky-200 hover:bg-sky-50"
+            >
+              <p className="text-sm font-medium text-slate-500">
+                People & Roles
+              </p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {data.people.length}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {activePeopleCount} active · {inactivePeopleCount} inactive
+              </p>
+              <p className="mt-4 text-sm font-medium text-sky-700">
+                Manage people →
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('workflow')}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:border-sky-200 hover:bg-sky-50"
+            >
+              <p className="text-sm font-medium text-slate-500">
+                Workflow Settings
+              </p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">
+                {data.settings.readinessTargetShifts ?? '5'}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                readiness target shifts
+              </p>
+              <p className="mt-4 text-sm font-medium text-sky-700">
+                View workflow settings →
+              </p>
+            </button>
           </div>
-          <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="font-semibold text-slate-900">Operational roles</h3>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Team Leaders
+                  </p>
+                  <p className="mt-2 text-xl font-semibold">
+                    {
+                      data.people.filter(
+                        (person) =>
+                          person.active &&
+                          person.roles.some(
+                            (role) => role.name === 'Team Leader',
+                          ),
+                      ).length
+                    }
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Assessors
+                  </p>
+                  <p className="mt-2 text-xl font-semibold">
+                    {
+                      data.people.filter(
+                        (person) =>
+                          person.active &&
+                          person.roles.some(
+                            (role) => role.name === 'Training Assessor',
+                          ),
+                      ).length
+                    }
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Training Buddies
+                  </p>
+                  <p className="mt-2 text-xl font-semibold">
+                    {
+                      data.people.filter(
+                        (person) =>
+                          person.active &&
+                          person.roles.some(
+                            (role) => role.name === 'Training Buddy',
+                          ),
+                      ).length
+                    }
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="font-semibold text-slate-900">Workflow controls</h3>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Setup overdue after</dt>
+                  <dd className="font-medium text-slate-900">
+                    {data.settings.setupOverdueAfterDays ?? '2'} days
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Chase after</dt>
+                  <dd className="font-medium text-slate-900">
+                    {data.settings.chaseAfterDays ?? '5'} days
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Priority after ready</dt>
+                  <dd className="font-medium text-slate-900">
+                    {data.settings.priorityAfterReadyDays ?? '5'} days
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'departments' ? (
+        <section className="space-y-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold">Department Management</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Add departments for future colleague and process management.
+                Maintain the departments available throughout the training
+                workflow.
               </p>
             </div>
-            <form
-              className="grid gap-3 md:grid-cols-[1fr_auto]"
-              onSubmit={addDepartment}
+            <p className="text-sm text-slate-500">
+              {activeDepartmentCount} active of {data.departments.length}
+            </p>
+          </div>
+
+          <form
+            className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_auto]"
+            onSubmit={addDepartment}
+          >
+            <input
+              className="rounded-xl border border-slate-200 bg-white p-3"
+              value={newDepartmentName}
+              onChange={(event) => setNewDepartmentName(event.target.value)}
+              placeholder="Department name"
+            />
+            <button
+              type="submit"
+              disabled={savingDepartment}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
-              <input
-                className="rounded-xl border border-slate-200 p-3"
-                value={newDepartmentName}
-                onChange={(event) => setNewDepartmentName(event.target.value)}
-                placeholder="Department name"
-              />
-              <button
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                disabled={savingDepartment}
-                type="submit"
-              >
-                {savingDepartment ? 'Adding...' : 'Add Department'}
-              </button>
-            </form>
-            {departmentError ? (
-              <p className="text-sm text-red-600">{departmentError}</p>
-            ) : null}
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-slate-500">
-                  <tr>
-                    <th className="pb-3 text-left">Department</th>
-                    <th className="pb-3 text-left">Status</th>
-                    <th className="pb-3 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.departments.map((department) =>
-                    editingDepartmentId === department.id ? (
-                      <tr
-                        key={department.id}
-                        className="border-t border-slate-200"
-                      >
-                        <td className="py-3 align-top">
+              {savingDepartment ? 'Adding...' : 'Add Department'}
+            </button>
+          </form>
+
+          {departmentError ? (
+            <p className="text-sm text-rose-700">{departmentError}</p>
+          ) : null}
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">Department</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.departments.map((department) =>
+                  editingDepartmentId === department.id ? (
+                    <tr key={department.id}>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-xl border border-slate-200 p-2"
+                          value={departmentEditForm.name}
+                          onChange={(event) =>
+                            setDepartmentEditForm((current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          className="rounded-xl border border-slate-200 p-2"
+                          value={String(departmentEditForm.active)}
+                          onChange={(event) =>
+                            setDepartmentEditForm((current) => ({
+                              ...current,
+                              active: event.target.value === 'true',
+                            }))
+                          }
+                        >
+                          <option value="true">Active</option>
+                          <option value="false">Inactive</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void saveDepartmentEdit(department.id)}
+                            className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingDepartmentId(null)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={department.id}>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {department.name}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge(
+                            department.active,
+                          )}`}
+                        >
+                          {department.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => startEditingDepartment(department)}
+                          className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'processes' ? (
+        <section className="space-y-5">
+          <div>
+            <h3 className="text-lg font-semibold">Process Management</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Manage one department at a time instead of displaying the entire
+              process catalogue at once.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <select
+              className="rounded-xl border border-slate-200 p-3"
+              value={selectedProcessDepartmentId}
+              onChange={(event) => {
+                setSelectedProcessDepartmentId(event.target.value);
+                setEditingProcessId(null);
+              }}
+            >
+              {data.departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                  {department.active ? '' : ' (Inactive)'}
+                </option>
+              ))}
+            </select>
+            <input
+              className="rounded-xl border border-slate-200 p-3"
+              value={processSearch}
+              onChange={(event) => setProcessSearch(event.target.value)}
+              placeholder="Search process"
+            />
+            <select
+              className="rounded-xl border border-slate-200 p-3"
+              value={processStatus}
+              onChange={(event) =>
+                setProcessStatus(event.target.value as StatusFilter)
+              }
+            >
+              <option>All</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
+
+          <form
+            className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr)_12rem_auto]"
+            onSubmit={addProcess}
+          >
+            <input
+              className="rounded-xl border border-slate-200 bg-white p-3"
+              value={newProcessName}
+              onChange={(event) => setNewProcessName(event.target.value)}
+              placeholder={
+                selectedDepartment
+                  ? `New process for ${selectedDepartment.name}`
+                  : 'Process name'
+              }
+            />
+            <input
+              className="rounded-xl border border-slate-200 bg-white p-3"
+              inputMode="decimal"
+              value={newProcessRecommendedHours}
+              onChange={(event) =>
+                setNewProcessRecommendedHours(event.target.value)
+              }
+              placeholder="Recommended hours"
+            />
+            <button
+              type="submit"
+              disabled={savingProcess || !selectedProcessDepartmentId}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {savingProcess ? 'Adding...' : 'Add Process'}
+            </button>
+          </form>
+
+          {processError ? (
+            <p className="text-sm text-rose-700">{processError}</p>
+          ) : null}
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <p className="font-semibold text-slate-900">
+                  {selectedDepartment?.name || 'Select a department'}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {visibleProcesses.length} matching process
+                  {visibleProcesses.length === 1 ? '' : 'es'}
+                </p>
+              </div>
+            </div>
+            <table className="min-w-full text-sm">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">Process</th>
+                  <th className="px-4 py-3 text-left">Recommended Hours</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleProcesses.length ? (
+                  visibleProcesses.map((process) =>
+                    editingProcessId === process.id ? (
+                      <tr key={process.id}>
+                        <td className="px-4 py-3">
                           <input
-                            className="w-full rounded-xl border border-slate-200 p-3"
-                            value={departmentEditForm.name}
+                            className="w-full rounded-xl border border-slate-200 p-2"
+                            value={processEditForm.name}
                             onChange={(event) =>
-                              setDepartmentEditForm((current) => ({
+                              setProcessEditForm((current) => ({
                                 ...current,
                                 name: event.target.value,
                               }))
                             }
                           />
-                          {departmentEditError ? (
-                            <p className="mt-2 text-sm text-red-600">
-                              {departmentEditError}
-                            </p>
-                          ) : null}
                         </td>
-                        <td className="py-3 align-top">
-                          <select
-                            className="rounded-xl border border-slate-200 p-3"
-                            value={String(departmentEditForm.active)}
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 rounded-xl border border-slate-200 p-2"
+                            inputMode="decimal"
+                            value={processEditForm.recommendedTrainingHours}
                             onChange={(event) =>
-                              setDepartmentEditForm((current) => ({
+                              setProcessEditForm((current) => ({
+                                ...current,
+                                recommendedTrainingHours: event.target.value,
+                              }))
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            className="rounded-xl border border-slate-200 p-2"
+                            value={String(processEditForm.active)}
+                            onChange={(event) =>
+                              setProcessEditForm((current) => ({
                                 ...current,
                                 active: event.target.value === 'true',
                               }))
@@ -797,326 +1024,183 @@ export default function SettingsPage() {
                             <option value="false">Inactive</option>
                           </select>
                         </td>
-                        <td className="py-3 align-top">
-                          <form
-                            className="flex flex-wrap gap-2"
-                            onSubmit={saveDepartmentEdit}
-                          >
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
                             <button
-                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-                              disabled={savingDepartmentEdit}
-                              type="submit"
+                              type="button"
+                              onClick={() => void saveProcessEdit(process)}
+                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white"
                             >
-                              {savingDepartmentEdit ? 'Saving...' : 'Save'}
+                              Save
                             </button>
                             <button
-                              className="rounded-full border border-slate-200 px-3 py-1 text-xs"
                               type="button"
-                              onClick={cancelEditingDepartment}
+                              onClick={() => setEditingProcessId(null)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs"
                             >
                               Cancel
                             </button>
-                          </form>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      <tr
-                        key={department.id}
-                        className="border-t border-slate-200"
-                      >
-                        <td className="py-3">{department.name}</td>
-                        <td className="py-3">
-                          {department.active ? 'Active' : 'Inactive'}
+                      <tr key={process.id}>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {process.name}
                         </td>
-                        <td className="py-3">
+                        <td className="px-4 py-3 text-slate-600">
+                          {process.recommendedTrainingHours
+                            ? `${process.recommendedTrainingHours} h`
+                            : 'Not Set'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge(
+                              process.active,
+                            )}`}
+                          >
+                            {process.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
                           <button
-                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
                             type="button"
-                            onClick={() => startEditingDepartment(department)}
+                            onClick={() => startEditingProcess(process)}
+                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                           >
                             Edit
                           </button>
                         </td>
                       </tr>
                     ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div>
-              <h3 className="text-lg font-semibold">Process Management</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Add processes to departments for future assignment workflows.
-              </p>
-            </div>
-            <form
-              className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,12rem)_auto]"
-              onSubmit={addProcess}
-            >
-              <select
-                className="rounded-xl border border-slate-200 p-3"
-                value={newProcessDepartmentId}
-                onChange={(event) =>
-                  setNewProcessDepartmentId(event.target.value)
-                }
-              >
-                {activeDepartments.length ? (
-                  activeDepartments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))
+                  )
                 ) : (
-                  <option value="">No active departments configured</option>
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      No processes match the current filters.
+                    </td>
+                  </tr>
                 )}
-              </select>
-              <input
-                className="rounded-xl border border-slate-200 p-3"
-                value={newProcessName}
-                onChange={(event) => setNewProcessName(event.target.value)}
-                placeholder="Process name"
-              />
-              <label className="space-y-1 text-sm">
-                <span className="text-xs text-slate-500">
-                  Recommended Training Hours
-                </span>
-                <input
-                  className="w-full rounded-xl border border-slate-200 p-3"
-                  inputMode="decimal"
-                  value={newProcessRecommendedHours}
-                  onChange={(event) =>
-                    setNewProcessRecommendedHours(event.target.value)
-                  }
-                  placeholder="Recommended hours"
-                />
-                <span className="text-xs text-slate-500">hours</span>
-              </label>
-              <button
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                disabled={savingProcess}
-                type="submit"
-              >
-                {savingProcess ? 'Adding...' : 'Add Process'}
-              </button>
-            </form>
-            {processError ? (
-              <p className="text-sm text-red-600">{processError}</p>
-            ) : null}
-            <div className="grid gap-4 md:grid-cols-2">
-              {processesByDepartment.map(({ department, processes }) => (
-                <article
-                  key={department.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4"
-                >
-                  <h4 className="font-semibold">
-                    {department.name}
-                    {!department.active ? (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
-                        Inactive
-                      </span>
-                    ) : null}
-                  </h4>
-                  {processes.length ? (
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="min-w-full text-sm text-slate-600">
-                        <thead className="text-slate-500">
-                          <tr>
-                            <th className="pb-2 text-left font-medium">
-                              Process
-                            </th>
-                            <th className="pb-2 text-left font-medium">
-                              Recommended Hours
-                            </th>
-                            <th className="pb-2 text-left font-medium">
-                              Status
-                            </th>
-                            <th className="pb-2 text-left font-medium">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {processes.map((process) =>
-                            editingProcessId === process.id ? (
-                              <tr
-                                key={process.id}
-                                className="border-t border-slate-100"
-                              >
-                                <td className="py-2 pr-3 align-top">
-                                  <input
-                                    className="w-full rounded-xl border border-slate-200 p-2"
-                                    value={processEditForm.name}
-                                    onChange={(event) =>
-                                      setProcessEditForm((current) => ({
-                                        ...current,
-                                        name: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                  {processEditError ? (
-                                    <p className="mt-2 text-sm text-red-600">
-                                      {processEditError}
-                                    </p>
-                                  ) : null}
-                                </td>
-                                <td className="py-2 pr-3 align-top">
-                                  <input
-                                    className="w-full rounded-xl border border-slate-200 p-2"
-                                    inputMode="decimal"
-                                    value={
-                                      processEditForm.recommendedTrainingHours
-                                    }
-                                    onChange={(event) =>
-                                      setProcessEditForm((current) => ({
-                                        ...current,
-                                        recommendedTrainingHours:
-                                          event.target.value,
-                                      }))
-                                    }
-                                  />
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    hours
-                                  </p>
-                                </td>
-                                <td className="py-2 pr-3 align-top">
-                                  <select
-                                    className="rounded-xl border border-slate-200 p-2"
-                                    value={String(processEditForm.active)}
-                                    onChange={(event) =>
-                                      setProcessEditForm((current) => ({
-                                        ...current,
-                                        active: event.target.value === 'true',
-                                      }))
-                                    }
-                                  >
-                                    <option value="true">Active</option>
-                                    <option value="false">Inactive</option>
-                                  </select>
-                                </td>
-                                <td className="py-2 align-top">
-                                  <form
-                                    className="flex flex-wrap gap-2"
-                                    onSubmit={(event) =>
-                                      saveProcessEdit(event, process)
-                                    }
-                                  >
-                                    <button
-                                      className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-                                      disabled={savingProcessEdit}
-                                      type="submit"
-                                    >
-                                      {savingProcessEdit ? 'Saving...' : 'Save'}
-                                    </button>
-                                    <button
-                                      className="rounded-full border border-slate-200 px-3 py-1 text-xs"
-                                      type="button"
-                                      onClick={cancelEditingProcess}
-                                    >
-                                      Cancel
-                                    </button>
-                                  </form>
-                                </td>
-                              </tr>
-                            ) : (
-                              <tr
-                                key={process.id}
-                                className="border-t border-slate-100"
-                              >
-                                <td className="py-2 pr-3">{process.name}</td>
-                                <td className="py-2 pr-3">
-                                  {process.recommendedTrainingHours
-                                    ? `${process.recommendedTrainingHours} h`
-                                    : 'Not Set'}
-                                </td>
-                                <td className="py-2 pr-3">
-                                  {process.active ? 'Active' : 'Inactive'}
-                                </td>
-                                <td className="py-2">
-                                  <button
-                                    className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
-                                    type="button"
-                                    onClick={() => startEditingProcess(process)}
-                                  >
-                                    Edit
-                                  </button>
-                                </td>
-                              </tr>
-                            ),
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-500">
-                      No processes configured.
-                    </p>
-                  )}
-                </article>
-              ))}
-            </div>
-          </section>
-          <section className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'people' ? (
+        <section className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold">People Management</h3>
+              <h3 className="text-lg font-semibold">People & Roles</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Add people and assign operational roles for future workflow
-                controls.
+                Manage operational people and the roles they can perform.
               </p>
             </div>
-            <form className="space-y-3" onSubmit={addPerson}>
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                <input
-                  className="rounded-xl border border-slate-200 p-3"
-                  value={newPersonName}
-                  onChange={(event) => setNewPersonName(event.target.value)}
-                  placeholder="Person name"
-                />
-                <button
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                  disabled={savingPerson}
-                  type="submit"
-                >
-                  {savingPerson ? 'Adding...' : 'Add Person'}
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddPerson((current) => !current);
+                setPersonError('');
+              }}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              {showAddPerson ? 'Close' : 'Add Person'}
+            </button>
+          </div>
+
+          {showAddPerson ? (
+            <form
+              className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+              onSubmit={addPerson}
+            >
+              <input
+                className="w-full rounded-xl border border-slate-200 bg-white p-3"
+                value={newPersonName}
+                onChange={(event) => setNewPersonName(event.target.value)}
+                placeholder="Person name"
+              />
+              <div className="flex flex-wrap gap-2">
                 {data.roles.map((role) => (
                   <label
                     key={role.id}
                     className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   >
                     <input
-                      checked={newPersonRoleIds.includes(role.id)}
-                      onChange={() => toggleNewPersonRole(role.id)}
                       type="checkbox"
+                      checked={newPersonRoleIds.includes(role.id)}
+                      onChange={() => toggleRole(role.id)}
                     />
                     <span>{role.name}</span>
                   </label>
                 ))}
               </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={savingPerson}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {savingPerson ? 'Adding...' : 'Add Person'}
+                </button>
+              </div>
             </form>
-            {personError ? (
-              <p className="text-sm text-red-600">{personError}</p>
-            ) : null}
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-slate-500">
-                  <tr>
-                    <th className="pb-3 text-left">Person</th>
-                    <th className="pb-3 text-left">Roles</th>
-                    <th className="pb-3 text-left">Status</th>
-                    <th className="pb-3 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.people.map((person) =>
+          ) : null}
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <input
+              className="rounded-xl border border-slate-200 p-3"
+              value={peopleSearch}
+              onChange={(event) => setPeopleSearch(event.target.value)}
+              placeholder="Search person"
+            />
+            <select
+              className="rounded-xl border border-slate-200 p-3"
+              value={peopleRole}
+              onChange={(event) => setPeopleRole(event.target.value)}
+            >
+              <option>All</option>
+              {data.roles.map((role) => (
+                <option key={role.id}>{role.name}</option>
+              ))}
+            </select>
+            <select
+              className="rounded-xl border border-slate-200 p-3"
+              value={peopleStatus}
+              onChange={(event) =>
+                setPeopleStatus(event.target.value as StatusFilter)
+              }
+            >
+              <option>All</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
+
+          {personError ? (
+            <p className="text-sm text-rose-700">{personError}</p>
+          ) : null}
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">Person</th>
+                  <th className="px-4 py-3 text-left">Roles</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visiblePeople.length ? (
+                  visiblePeople.map((person) =>
                     editingPersonId === person.id ? (
-                      <tr key={person.id} className="border-t border-slate-100">
-                        <td className="py-3 align-top">
+                      <tr key={person.id}>
+                        <td className="px-4 py-3 align-top">
                           <input
-                            className="w-full rounded-xl border border-slate-200 p-3"
+                            className="w-full rounded-xl border border-slate-200 p-2"
                             value={personEditForm.name}
                             onChange={(event) =>
                               setPersonEditForm((current) => ({
@@ -1126,33 +1210,28 @@ export default function SettingsPage() {
                             }
                           />
                         </td>
-                        <td className="py-3 align-top">
+                        <td className="px-4 py-3 align-top">
                           <div className="flex flex-wrap gap-2">
                             {data.roles.map((role) => (
                               <label
                                 key={role.id}
-                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                                className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1 text-xs"
                               >
                                 <input
+                                  type="checkbox"
                                   checked={personEditForm.roleIds.includes(
                                     role.id,
                                   )}
-                                  onChange={() => toggleEditPersonRole(role.id)}
-                                  type="checkbox"
+                                  onChange={() => toggleRole(role.id, true)}
                                 />
                                 <span>{role.name}</span>
                               </label>
                             ))}
                           </div>
-                          {personEditError ? (
-                            <p className="mt-2 text-sm text-red-600">
-                              {personEditError}
-                            </p>
-                          ) : null}
                         </td>
-                        <td className="py-3 align-top">
+                        <td className="px-4 py-3 align-top">
                           <select
-                            className="rounded-xl border border-slate-200 p-3"
+                            className="rounded-xl border border-slate-200 p-2"
                             value={String(personEditForm.active)}
                             onChange={(event) =>
                               setPersonEditForm((current) => ({
@@ -1165,79 +1244,148 @@ export default function SettingsPage() {
                             <option value="false">Inactive</option>
                           </select>
                         </td>
-                        <td className="py-3 align-top">
-                          <form
-                            className="flex flex-wrap gap-2"
-                            onSubmit={savePersonEdit}
-                          >
+                        <td className="px-4 py-3 text-right align-top">
+                          <div className="flex justify-end gap-2">
                             <button
-                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-                              disabled={savingPersonEdit}
-                              type="submit"
+                              type="button"
+                              onClick={() => void savePersonEdit(person.id)}
+                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white"
                             >
-                              {savingPersonEdit ? 'Saving...' : 'Save'}
+                              Save
                             </button>
                             <button
-                              className="rounded-full border border-slate-200 px-3 py-1 text-xs"
                               type="button"
-                              onClick={cancelEditingPerson}
+                              onClick={() => setEditingPersonId(null)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs"
                             >
                               Cancel
                             </button>
-                          </form>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      <tr key={person.id} className="border-t border-slate-100">
-                        <td className="py-3">{person.name}</td>
-                        <td className="py-3">
-                          {person.roles.map((role) => role.name).join(', ') ||
-                            'No roles assigned'}
+                      <tr key={person.id}>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {person.name}
                         </td>
-                        <td className="py-3">
-                          {person.active ? 'Active' : 'Inactive'}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {person.roles.length ? (
+                              person.roles.map((role) => (
+                                <span
+                                  key={role.id}
+                                  className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700"
+                                >
+                                  {role.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-500">
+                                No roles assigned
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3">
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge(
+                              person.active,
+                            )}`}
+                          >
+                            {person.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
                           <button
-                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
                             type="button"
                             onClick={() => startEditingPerson(person)}
+                            className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                           >
                             Edit
                           </button>
                         </td>
                       </tr>
                     ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-slate-500">
-                <tr>
-                  <th className="pb-3 text-left">Trainee</th>
-                  <th className="pb-3 text-left">Department</th>
-                  <th className="pb-3 text-left">Team Leader</th>
-                  <th className="pb-3 text-left">Assessor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.trainees.map((trainee) => (
-                  <tr key={trainee.id} className="border-t border-slate-100">
-                    <td className="py-3">{trainee.name}</td>
-                    <td className="py-3">{trainee.departmentName}</td>
-                    <td className="py-3">{trainee.teamLeader ?? ''}</td>
-                    <td className="py-3">
-                      {trainee.trainingAssessor ?? ''}
+                  )
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      No people match the current filters.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
-        </>
+        </section>
+      ) : null}
+
+      {activeTab === 'workflow' ? (
+        <section className="space-y-5">
+          <div>
+            <h3 className="text-lg font-semibold">Workflow Settings</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Current workflow thresholds used by the Training Command Centre.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <article className="rounded-2xl border border-slate-200 p-5">
+              <p className="text-sm font-medium text-slate-500">
+                Setup overdue after
+              </p>
+              <p className="mt-2 text-3xl font-semibold">
+                {data.settings.setupOverdueAfterDays ?? '2'} days
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Used to identify training setup activity that is overdue.
+              </p>
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-5">
+              <p className="text-sm font-medium text-slate-500">Chase after</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {data.settings.chaseAfterDays ?? '5'} days
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Used to trigger a follow-up chase when progress has stalled.
+              </p>
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-5">
+              <p className="text-sm font-medium text-slate-500">
+                Priority after ready
+              </p>
+              <p className="mt-2 text-3xl font-semibold">
+                {data.settings.priorityAfterReadyDays ?? '5'} days
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Used to prioritise colleagues who remain ready for assessment.
+              </p>
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-5">
+              <p className="text-sm font-medium text-slate-500">
+                Readiness target
+              </p>
+              <p className="mt-2 text-3xl font-semibold">
+                {data.settings.readinessTargetShifts ?? '5'} shifts
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Target number of shifts used by the readiness workflow.
+              </p>
+            </article>
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            These workflow values are currently displayed from the existing
+            settings store. Editing controls can be added once the workflow
+            rules for changing these thresholds are agreed.
+          </div>
+        </section>
       ) : null}
     </div>
   );
