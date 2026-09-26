@@ -69,21 +69,18 @@ function scheduleStatusClass(tone: RefresherSchedulingDisplay['tone']) {
   switch (tone) {
     case 'scheduled':
       return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
-    case 'completed':
-      return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
     case 'notScheduled':
     default:
       return 'bg-slate-100 text-slate-600 ring-slate-200';
   }
 }
 
-function visibleSummaryItems(summary: RefresherSummary) {
+function visibleComplianceSummaryItems(summary: RefresherSummary) {
   const items: Array<[string, number]> = [
     ['Overdue', summary.overdue],
     ['Due This Month', summary.dueThisMonth],
     ['Due Next Month', summary.dueNextMonth],
-    ['Scheduled', summary.scheduled],
-    ['Not Scheduled', summary.notScheduled],
+    ['Not Due Yet', summary.notDueYet],
   ];
 
   return items.filter(([, value]) => value > 0);
@@ -258,11 +255,7 @@ export default function RefreshersPage() {
           ['Overdue', topSummary.overdue],
           ['Due This Month', topSummary.dueThisMonth],
           ['Due Next Month', topSummary.dueNextMonth],
-          [
-            'Not Due Yet',
-            refresherRecords.filter((item) => item.status === 'Not Due Yet')
-              .length,
-          ],
+          ['Not Due Yet', topSummary.notDueYet],
           ['Completed This Month', completedThisMonth],
         ].map(([label, value]) => (
           <article
@@ -346,31 +339,49 @@ export default function RefreshersPage() {
                     )}
                   </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                  <SummaryMetric
-                    label="Total Refreshers"
-                    value={departmentGroup.summary.totalRefreshers}
-                  />
-                  <SummaryMetric
-                    label="Overdue"
-                    value={departmentGroup.summary.overdue}
-                  />
-                  <SummaryMetric
-                    label="Due This Month"
-                    value={departmentGroup.summary.dueThisMonth}
-                  />
-                  <SummaryMetric
-                    label="Due Next Month"
-                    value={departmentGroup.summary.dueNextMonth}
-                  />
-                  <SummaryMetric
-                    label="Scheduled"
-                    value={departmentGroup.summary.scheduled}
-                  />
-                  <SummaryMetric
-                    label="Not Scheduled"
-                    value={departmentGroup.summary.notScheduled}
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Compliance status
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                      <SummaryMetric
+                        label="Total Refreshers"
+                        value={departmentGroup.summary.totalRefreshers}
+                      />
+                      <SummaryMetric
+                        label="Overdue"
+                        value={departmentGroup.summary.overdue}
+                      />
+                      <SummaryMetric
+                        label="Due This Month"
+                        value={departmentGroup.summary.dueThisMonth}
+                      />
+                      <SummaryMetric
+                        label="Due Next Month"
+                        value={departmentGroup.summary.dueNextMonth}
+                      />
+                      <SummaryMetric
+                        label="Not Due Yet"
+                        value={departmentGroup.summary.notDueYet}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Scheduling status
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <SummaryMetric
+                        label="Scheduled"
+                        value={departmentGroup.summary.scheduled}
+                      />
+                      <SummaryMetric
+                        label="Not Scheduled"
+                        value={departmentGroup.summary.notScheduled}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="space-y-3">
@@ -398,20 +409,30 @@ export default function RefreshersPage() {
                             <span className="block text-lg font-semibold text-slate-900">
                               {colleague.traineeName}
                             </span>
-                            <span className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                            <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
                               <span className="font-medium">
                                 {formatCountLabel(
                                   colleague.summary.totalRefreshers,
                                   'Refresher',
                                 )}
                               </span>
-                              {visibleSummaryItems(colleague.summary).map(
+                              <span className="font-medium text-slate-500">
+                                Compliance:
+                              </span>
+                              {visibleComplianceSummaryItems(colleague.summary).map(
                                 ([label, value]) => (
                                   <span key={label}>
                                     {value} {label}
                                   </span>
                                 ),
                               )}
+                              <span className="font-medium text-slate-500">
+                                Scheduling:
+                              </span>
+                              <span>{colleague.summary.scheduled} Scheduled</span>
+                              <span>
+                                {colleague.summary.notScheduled} Not Scheduled
+                              </span>
                             </span>
                           </span>
                         </button>

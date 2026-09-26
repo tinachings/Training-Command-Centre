@@ -27,6 +27,7 @@ export type RefresherSummary = {
   overdue: number;
   dueThisMonth: number;
   dueNextMonth: number;
+  notDueYet: number;
   scheduled: number;
   notScheduled: number;
 };
@@ -47,7 +48,7 @@ export type RefresherDashboardDepartmentGroup = {
 
 export type RefresherSchedulingDisplay = {
   label: string;
-  tone: 'completed' | 'scheduled' | 'notScheduled' | 'other';
+  tone: 'scheduled' | 'notScheduled';
 };
 
 const statusPriority: Record<string, number> = {
@@ -107,47 +108,23 @@ export function isActivelyScheduledRefresher(
   const scheduleStatus = record.scheduleStatus?.trim();
 
   return Boolean(
-    record.scheduledRefresherDate &&
-      scheduleStatus === 'Scheduled' &&
-      !isCompletedRefresher(record),
+    record.scheduledRefresherDate && scheduleStatus === 'Scheduled',
   );
 }
 
 export function isNotScheduledRefresher(record: RefresherDashboardRecord) {
-  return (
-    !isCompletedRefresher(record) && !isActivelyScheduledRefresher(record)
-  );
+  return !isActivelyScheduledRefresher(record);
 }
 
 export function getRefresherSchedulingDisplay(
   record: RefresherDashboardRecord,
 ): RefresherSchedulingDisplay {
-  if (isCompletedRefresher(record)) {
-    const completedDate = formatDisplayDate(record.completedDate);
-
-    return {
-      label: completedDate ? `Completed ${completedDate}` : 'Completed',
-      tone: 'completed',
-    };
-  }
-
   if (isActivelyScheduledRefresher(record)) {
     const scheduledDate = formatDisplayDate(record.scheduledRefresherDate);
 
     return {
       label: scheduledDate ? `Scheduled ${scheduledDate}` : 'Scheduled',
       tone: 'scheduled',
-    };
-  }
-
-  const scheduleStatus = record.scheduleStatus?.trim();
-
-  if (scheduleStatus && scheduleStatus !== 'Scheduled') {
-    const scheduledDate = formatDisplayDate(record.scheduledRefresherDate);
-
-    return {
-      label: scheduledDate ? `${scheduleStatus} ${scheduledDate}` : scheduleStatus,
-      tone: 'other',
     };
   }
 
@@ -169,6 +146,8 @@ export function calculateRefresherSummary(
     dueNextMonth: records.filter(
       (record) => record.status === 'Due Next Month',
     ).length,
+    notDueYet: records.filter((record) => record.status === 'Not Due Yet')
+      .length,
     scheduled: records.filter(isActivelyScheduledRefresher).length,
     notScheduled: records.filter(isNotScheduledRefresher).length,
   };

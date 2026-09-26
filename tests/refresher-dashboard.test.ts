@@ -122,14 +122,17 @@ test('calculates department reporting summaries from records', () => {
     overdue: 1,
     dueThisMonth: 1,
     dueNextMonth: 1,
+    notDueYet: 1,
     scheduled: 1,
     notScheduled: 3,
   });
 });
 
-test('excludes completed records from scheduled and not scheduled counts', () => {
+test('treats a completed previous cycle as a current not scheduled obligation', () => {
   const completed = refresherRecord({
     id: 1,
+    status: 'Not Due Yet',
+    refresherDueDate: '2027-05-27T00:00:00.000Z',
     scheduledRefresherDate: '2026-05-27T00:00:00.000Z',
     scheduleStatus: 'Completed',
     completedDate: '2026-05-27T00:00:00.000Z',
@@ -140,10 +143,10 @@ test('excludes completed records from scheduled and not scheduled counts', () =>
 
   assert.equal(isCompletedRefresher(completed), true);
   assert.equal(isActivelyScheduledRefresher(completed), false);
-  assert.equal(isNotScheduledRefresher(completed), false);
+  assert.equal(isNotScheduledRefresher(completed), true);
   assert.equal(summary.totalRefreshers, 1);
   assert.equal(summary.scheduled, 0);
-  assert.equal(summary.notScheduled, 0);
+  assert.equal(summary.notScheduled, 1);
 });
 
 test('counts active scheduled and active not scheduled obligations', () => {
@@ -175,7 +178,7 @@ test('counts active scheduled and active not scheduled obligations', () => {
   assert.equal(summary.notScheduled, 1);
 });
 
-test('reconciles scheduling counts to visible non-completed obligations', () => {
+test('reconciles scheduling counts to all current refresher obligations', () => {
   const records = [
     refresherRecord({
       id: 1,
@@ -185,18 +188,20 @@ test('reconciles scheduling counts to visible non-completed obligations', () => 
     refresherRecord({ id: 2, scheduledRefresherDate: null }),
     refresherRecord({
       id: 3,
+      status: 'Not Due Yet',
+      refresherDueDate: '2027-05-27T00:00:00.000Z',
       scheduleStatus: 'Completed',
       completedDate: '2026-05-27T00:00:00.000Z',
       outcome: 'Competent',
     }),
   ];
   const summary = calculateRefresherSummary(records);
-  const activeObligations = records.filter(
-    (record) => !isCompletedRefresher(record),
-  ).length;
 
   assert.equal(summary.totalRefreshers, 3);
-  assert.equal(summary.scheduled + summary.notScheduled, activeObligations);
+  assert.equal(
+    summary.scheduled + summary.notScheduled,
+    summary.totalRefreshers,
+  );
 });
 
 test('sorts colleague groups by compliance priority and name', () => {
@@ -324,12 +329,14 @@ test('formats scheduling display labels without redundant planned text', () => {
   assert.deepEqual(
     getRefresherSchedulingDisplay(
       refresherRecord({
+        status: 'Not Due Yet',
+        refresherDueDate: '2027-05-27T00:00:00.000Z',
         scheduledRefresherDate: '2026-05-27T00:00:00.000Z',
         scheduleStatus: 'Completed',
         completedDate: '2026-05-27T00:00:00.000Z',
       }),
     ),
-    { label: 'Completed 27 May 2026', tone: 'completed' },
+    { label: 'Not Scheduled', tone: 'notScheduled' },
   );
   assert.doesNotMatch(
     getRefresherSchedulingDisplay(refresherRecord({})).label,
