@@ -437,3 +437,16 @@ test('refresher history API combines timeline history with current completion re
   assert.match(source, /refresherRecord\.findMany/);
   assert.match(source, /departmentCounts/);
 });
+
+
+test('Assessment Records keeps history visible and supports month filtering', () => {
+  const page = readFileSync('src/app/assessment-records/page.tsx', 'utf8');
+  const api = readFileSync('src/app/api/assessment-records/route.ts', 'utf8');
+
+  assert.match(page, /type="month"/);
+  assert.match(page, /All History/);
+  assert.match(page, /item\.date\.slice\(0, 7\) === month/);
+  assert.doesNotMatch(api, /activeAssignmentStatus/);
+  assert.doesNotMatch(api, /assignmentStatus:/);
+  assert.doesNotMatch(api, /status:\s*\{\s*not:\s*'Archived'/);
+});
