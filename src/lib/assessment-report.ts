@@ -88,9 +88,7 @@ function naturalList(items: string[]) {
   return `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`;
 }
 
-export function buildAssessmentSummary(
-  draft: Omit<AssessmentReportDraft, 'assessmentSummary'>,
-) {
+export function buildAssessmentSummary(draft: AssessmentReportDraft) {
   const competency = competencySummary(draft.competency);
   const observations = cleanItems(draft.positiveObservations);
   const gaps = cleanItems(draft.gapsIdentified);
