@@ -223,10 +223,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       scheduleStatus: true,
       assignedAssessor: true,
       completedDate: true,
+      outcome: true,
       traineeProcess: {
         select: {
           trainee: {
             select: {
+              id: true,
               name: true,
               department: {
                 select: {
@@ -419,11 +421,79 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       });
 
+      const traineeId = current.traineeProcess.trainee.id;
+      const traineeName =
+        current.traineeProcess.trainee.name || current.traineeName;
+      const processName =
+        current.traineeProcess.process.name || current.process;
+      const completionAssessor =
+        assignedAssessor === undefined
+          ? current.assignedAssessor
+          : assignedAssessor;
+
+      if (current.completedDate) {
+        const existingPreviousCompletion =
+          await transaction.timelineEvent.findFirst({
+            where: {
+              traineeProcessId: current.traineeProcessId,
+              eventType: 'Refresher Completed',
+              date: current.completedDate,
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        if (!existingPreviousCompletion) {
+          await transaction.timelineEvent.create({
+            data: {
+              traineeId,
+              traineeProcessId: current.traineeProcessId,
+              process: processName,
+              eventType: 'Refresher Completed',
+              date: current.completedDate,
+              description: `Outcome: ${current.outcome || 'Recorded'}`,
+              user: current.assignedAssessor || 'Not Assigned',
+            },
+          });
+        }
+      }
+
+      const existingCompletion = await transaction.timelineEvent.findFirst({
+        where: {
+          traineeProcessId: current.traineeProcessId,
+          eventType: 'Refresher Completed',
+          date: completedDate,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingCompletion) {
+        await transaction.timelineEvent.create({
+          data: {
+            traineeId,
+            traineeProcessId: current.traineeProcessId,
+            process: processName,
+            eventType: 'Refresher Completed',
+            date: completedDate,
+            description: `Outcome: ${outcome}`,
+            user: completionAssessor || 'Not Assigned',
+          },
+        });
+      }
+
       return transaction.refresherRecord.update({
         where: {
           id: current.id,
         },
         data: {
+          department:
+            current.traineeProcess.trainee.department.name ||
+            current.department,
+          traineeName,
+          process: processName,
           lastCompetencyDate: completedDate,
           refresherDueDate: newDueDate,
           status: complianceStatus,
