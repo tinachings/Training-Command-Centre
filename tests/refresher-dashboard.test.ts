@@ -273,23 +273,27 @@ test('sorts refreshers by priority, due date and process name', () => {
   );
 });
 
-test('counts only records completed in the current UTC month', () => {
+test('counts records completed in the current UTC month after compliance status resets', () => {
   const count = countCompletedThisMonth(
     [
       refresherRecord({
         id: 1,
-        status: 'Completed',
+        status: 'Not Due Yet',
+        scheduleStatus: 'Completed',
         completedDate: '2026-07-01T00:30:00.000Z',
+        outcome: 'Competent',
       }),
       refresherRecord({
         id: 2,
-        status: 'Completed',
+        status: 'Not Due Yet',
+        scheduleStatus: 'Completed',
         completedDate: '2026-06-30T23:30:00.000Z',
+        outcome: 'Competent',
       }),
       refresherRecord({
         id: 3,
-        status: 'Overdue',
-        completedDate: '2026-07-15T00:00:00.000Z',
+        status: 'Due Next Month',
+        completedDate: null,
       }),
     ],
     new Date('2026-07-21T12:00:00.000Z'),
