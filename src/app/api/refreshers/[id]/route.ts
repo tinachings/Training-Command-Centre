@@ -444,7 +444,19 @@ export async function PATCH(request: Request, context: RouteContext) {
             },
           });
 
-        if (!existingPreviousCompletion) {
+        if (existingPreviousCompletion) {
+          await transaction.timelineEvent.update({
+            where: {
+              id: existingPreviousCompletion.id,
+            },
+            data: {
+              traineeId,
+              process: processName,
+              description: `Outcome: ${current.outcome || 'Recorded'}`,
+              user: current.assignedAssessor || 'Not Assigned',
+            },
+          });
+        } else {
           await transaction.timelineEvent.create({
             data: {
               traineeId,
@@ -470,7 +482,19 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       });
 
-      if (!existingCompletion) {
+      if (existingCompletion) {
+        await transaction.timelineEvent.update({
+          where: {
+            id: existingCompletion.id,
+          },
+          data: {
+            traineeId,
+            process: processName,
+            description: `Outcome: ${outcome}`,
+            user: completionAssessor || 'Not Assigned',
+          },
+        });
+      } else {
         await transaction.timelineEvent.create({
           data: {
             traineeId,
