@@ -225,15 +225,31 @@ export default function AssessmentGeneratorPage() {
     setFinalised(false);
   }
 
+  function defaultNextActionForOutcome(
+    type: AssessmentType,
+    outcome: string,
+  ) {
+    if (type === 'Pre-Assessment') {
+      return outcome === 'Ready for Assessment'
+        ? 'Proceed to Assessment'
+        : 'Continue Development';
+    }
+
+    return outcome === 'Competent – Recommend Sign-Off'
+      ? 'Recommend Sign-Off'
+      : 'Retraining Required';
+  }
+
   function changeType(value: AssessmentType) {
     setAssessmentType(value);
-    if (value === 'Pre-Assessment') {
-      setAssessmentOutcome('Ready for Assessment');
-      setNextAction('Proceed to Assessment');
-    } else {
-      setAssessmentOutcome('Competent – Recommend Sign-Off');
-      setNextAction('Recommend Sign-Off');
-    }
+
+    const outcome =
+      value === 'Pre-Assessment'
+        ? 'Ready for Assessment'
+        : 'Competent – Recommend Sign-Off';
+
+    setAssessmentOutcome(outcome);
+    setNextAction(defaultNextActionForOutcome(value, outcome));
     setFinalised(false);
   }
 
@@ -616,7 +632,11 @@ export default function AssessmentGeneratorPage() {
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3"
                   value={assessmentOutcome}
                   onChange={(event) => {
-                    setAssessmentOutcome(event.target.value);
+                    const outcome = event.target.value;
+                    setAssessmentOutcome(outcome);
+                    setNextAction(
+                      defaultNextActionForOutcome(assessmentType, outcome),
+                    );
                     setFinalised(false);
                   }}
                 >
