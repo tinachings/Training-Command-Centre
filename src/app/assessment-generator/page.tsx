@@ -548,7 +548,7 @@ export default function AssessmentGeneratorPage() {
                     onChange={(event) => {
                       setCompetency((current) => ({
                         ...current,
-                        [key]: event.target.value,
+                        [key]: event.target.value as CompetencyEvaluation[typeof key],
                       }));
                       setFinalised(false);
                     }}
