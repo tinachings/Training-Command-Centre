@@ -16,6 +16,42 @@ import {
 
 type RefresherRecord = RefresherDashboardRecord;
 
+type RefresherCompletionHistoryItem = {
+  traineeProcessId: number;
+  traineeId: number;
+  traineeName: string;
+  department: string;
+  process: string;
+  completedDate: string;
+  outcome: string | null;
+  assessor: string | null;
+};
+
+type RefresherCompletionHistoryResponse = {
+  month: string;
+  total: number;
+  departmentCounts: Record<string, number>;
+  completions: RefresherCompletionHistoryItem[];
+};
+
+function currentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function formatMonthLabel(value: string) {
+  const [year, month] = value.split('-').map(Number);
+
+  if (!year || !month) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 function formatDate(value: string | null) {
   if (!value) {
     return '-';
@@ -115,6 +151,12 @@ export default function RefreshersPage() {
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState(() => currentMonthKey());
+  const [historyData, setHistoryData] =
+    useState<RefresherCompletionHistoryResponse | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +196,54 @@ export default function RefreshersPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!historyOpen) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadHistory() {
+      setHistoryLoading(true);
+      setHistoryError('');
+
+      try {
+        const response = await fetch(
+          `/api/refreshers/history?month=${encodeURIComponent(historyMonth)}`,
+          {
+            cache: 'no-store',
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to load completion history.');
+        }
+
+        const data =
+          (await response.json()) as RefresherCompletionHistoryResponse;
+
+        if (!cancelled) {
+          setHistoryData(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setHistoryData(null);
+          setHistoryError('Failed to load completion history.');
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
+        }
+      }
+    }
+
+    void loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historyMonth, historyOpen]);
 
   const filtered = useMemo(
     () =>
@@ -256,7 +346,6 @@ export default function RefreshersPage() {
           ['Due This Month', topSummary.dueThisMonth],
           ['Due Next Month', topSummary.dueNextMonth],
           ['Not Due Yet', topSummary.notDueYet],
-          ['Completed This Month', completedThisMonth],
         ].map(([label, value]) => (
           <article
             key={label}
@@ -268,7 +357,130 @@ export default function RefreshersPage() {
             </p>
           </article>
         ))}
+        <button
+          type="button"
+          className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left transition hover:border-sky-200 hover:bg-sky-50"
+          aria-expanded={historyOpen}
+          onClick={() => {
+            if (!historyOpen) {
+              setHistoryMonth(currentMonthKey());
+            }
+            setHistoryOpen((current) => !current);
+          }}
+        >
+          <p className="text-sm text-slate-500">Completed This Month</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">
+            {completedThisMonth}
+          </p>
+          <p className="mt-2 text-xs font-medium text-sky-700">
+            {historyOpen ? 'Hide history' : 'View completion history'}
+          </p>
+        </button>
       </div>
+      {historyOpen ? (
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">
+                Completion History
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Review completed refreshers from any recorded month.
+              </p>
+            </div>
+            <label className="text-sm font-medium text-slate-700">
+              Month
+              <input
+                type="month"
+                className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2"
+                value={historyMonth}
+                max={currentMonthKey()}
+                onChange={(event) => setHistoryMonth(event.target.value)}
+              />
+            </label>
+          </div>
+
+          {historyLoading ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Loading completion history...
+            </p>
+          ) : null}
+          {historyError ? (
+            <p className="mt-4 text-sm text-red-600">{historyError}</p>
+          ) : null}
+          {!historyLoading && !historyError && historyData ? (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">
+                  {formatMonthLabel(historyData.month)}
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <SummaryMetric
+                    label="Completed"
+                    value={historyData.total}
+                  />
+                  {Object.entries(historyData.departmentCounts)
+                    .sort(([left], [right]) => left.localeCompare(right))
+                    .map(([departmentName, count]) => (
+                      <SummaryMetric
+                        key={departmentName}
+                        label={departmentName}
+                        value={count}
+                      />
+                    ))}
+                </div>
+              </div>
+
+              {historyData.completions.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="hidden grid-cols-[120px_minmax(150px,1.1fr)_minmax(180px,1.4fr)_120px_minmax(120px,1fr)_minmax(120px,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+                    <span>Date</span>
+                    <span>Colleague</span>
+                    <span>Process</span>
+                    <span>Department</span>
+                    <span>Outcome</span>
+                    <span>Assessor</span>
+                  </div>
+                  <div className="divide-y divide-slate-200">
+                    {historyData.completions.map((item) => (
+                      <div
+                        key={`${item.traineeProcessId}:${item.completedDate}`}
+                        className="grid gap-2 px-3 py-3 text-sm lg:grid-cols-[120px_minmax(150px,1.1fr)_minmax(180px,1.4fr)_120px_minmax(120px,1fr)_minmax(120px,1fr)] lg:items-center lg:gap-3"
+                      >
+                        <span className="text-slate-600">
+                          {formatDate(item.completedDate)}
+                        </span>
+                        <Link
+                          className="font-medium text-sky-700 hover:text-sky-900"
+                          href={`/trainees/${item.traineeId}`}
+                        >
+                          {item.traineeName}
+                        </Link>
+                        <span className="font-medium text-slate-900">
+                          {item.process}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.department}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.outcome || '-'}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.assessor || 'Not Assigned'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                  No completed refreshers were recorded for this month.
+                </p>
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-3">
         <select
           className="rounded-xl border border-slate-200 p-3"
