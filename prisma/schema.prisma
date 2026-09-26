@@ -128,6 +128,7 @@ model TraineeProcess {
   weeklyPlannerItems         WeeklyPlannerItem[]
   followUpActions            FollowUpAction[]
   refresherRecord            RefresherRecord?
+  refresherCompletions       RefresherCompletion[]
   timelineEvents             TimelineEvent[]
   checkIns                   ProcessCheckIn[]
   trainingHoursEntries       TrainingHoursEntry[]
@@ -258,6 +259,23 @@ model RefresherRecord {
 
   @@index([refresherDueDate])
   @@index([scheduledRefresherDate])
+}
+
+model RefresherCompletion {
+  id               Int            @id @default(autoincrement())
+  traineeProcessId Int
+  traineeProcess   TraineeProcess @relation(fields: [traineeProcessId], references: [id])
+  department       String
+  traineeName      String
+  process          String
+  completedDate    DateTime
+  outcome          String?
+  assessor         String?
+  createdAt        DateTime       @default(now())
+
+  @@unique([traineeProcessId, completedDate])
+  @@index([completedDate])
+  @@index([department, completedDate])
 }
 
 model FollowUpAction {
