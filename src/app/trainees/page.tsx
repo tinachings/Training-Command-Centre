@@ -22,6 +22,59 @@ type TraineeListItem = {
   followUpRequired: boolean;
 };
 
+
+type NewTrainingHistoryItem = {
+  traineeProcessId: number;
+  traineeId: number;
+  traineeName: string;
+  departmentName: string;
+  processName: string;
+  trainingStartDate: string;
+  trainingBuddy: string | null;
+  trainingAssessor: string | null;
+  assignmentStatus: string;
+};
+
+type NewTrainingHistoryResponse = {
+  month: string;
+  total: number;
+  departmentCounts: Record<string, number>;
+  trainings: NewTrainingHistoryItem[];
+};
+
+function currentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function formatMonthLabel(value: string) {
+  const [year, month] = value.split('-').map(Number);
+
+  if (!year || !month) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function formatHistoryDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return value.slice(0, 10);
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 const defaultDepartment = 'Surfacing';
 
 async function fetchTrainees(signal?: AbortSignal) {
@@ -49,15 +102,42 @@ export default function TraineesPage() {
   const [error, setError] = useState('');
   const [archivingId, setArchivingId] = useState<number | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
+  const [trainingHistoryOpen, setTrainingHistoryOpen] = useState(false);
+  const [trainingHistoryMonth, setTrainingHistoryMonth] = useState(() =>
+    currentMonthKey(),
+  );
+  const [trainingHistory, setTrainingHistory] =
+    useState<NewTrainingHistoryResponse | null>(null);
+  const [trainingHistoryLoading, setTrainingHistoryLoading] = useState(false);
+  const [trainingHistoryError, setTrainingHistoryError] = useState('');
+  const [newTrainingsThisMonth, setNewTrainingsThisMonth] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadTrainees() {
       try {
-        const traineeData = await fetchTrainees(controller.signal);
+        const [traineeData, trainingHistoryResponse] = await Promise.all([
+          fetchTrainees(controller.signal),
+          fetch(
+            `/api/training-history?month=${encodeURIComponent(
+              currentMonthKey(),
+            )}`,
+            {
+              cache: 'no-store',
+              signal: controller.signal,
+            },
+          ),
+        ]);
 
         setTrainees(traineeData);
+
+        if (trainingHistoryResponse.ok) {
+          const currentHistory =
+            (await trainingHistoryResponse.json()) as NewTrainingHistoryResponse;
+          setNewTrainingsThisMonth(currentHistory.total);
+        }
+
         if (
           !defaultDepartmentApplied.current &&
           traineeData.some(
@@ -99,6 +179,52 @@ export default function TraineesPage() {
 
     return () => document.removeEventListener('pointerdown', closeOpenMenu);
   }, [openActionMenuId]);
+
+
+  useEffect(() => {
+    if (!trainingHistoryOpen) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadTrainingHistory() {
+      setTrainingHistoryLoading(true);
+      setTrainingHistoryError('');
+
+      try {
+        const response = await fetch(
+          `/api/training-history?month=${encodeURIComponent(
+            trainingHistoryMonth,
+          )}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to load training history.');
+        }
+
+        const data = (await response.json()) as NewTrainingHistoryResponse;
+        setTrainingHistory(data);
+      } catch (loadError) {
+        if ((loadError as Error).name !== 'AbortError') {
+          setTrainingHistory(null);
+          setTrainingHistoryError('Failed to load training history.');
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setTrainingHistoryLoading(false);
+        }
+      }
+    }
+
+    void loadTrainingHistory();
+
+    return () => controller.abort();
+  }, [trainingHistoryMonth, trainingHistoryOpen]);
 
   function firstNameSortValue(name: string) {
     return name.trim().split(/\s+/)[0]?.toLocaleLowerCase() ?? '';
@@ -191,6 +317,151 @@ export default function TraineesPage() {
           Add New Colleague
         </Link>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <button
+          type="button"
+          className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left transition hover:border-sky-200 hover:bg-sky-50"
+          aria-expanded={trainingHistoryOpen}
+          onClick={() => {
+            if (!trainingHistoryOpen) {
+              setTrainingHistoryMonth(currentMonthKey());
+            }
+            setTrainingHistoryOpen((current) => !current);
+          }}
+        >
+          <p className="text-sm text-slate-500">New Trainings This Month</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">
+            {newTrainingsThisMonth}
+          </p>
+          <p className="mt-2 text-xs font-medium text-sky-700">
+            {trainingHistoryOpen ? 'Hide history' : 'View training history'}
+          </p>
+        </button>
+      </div>
+
+      {trainingHistoryOpen ? (
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">
+                New Training History
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Review training processes that started in any recorded month.
+              </p>
+            </div>
+            <label className="text-sm font-medium text-slate-700">
+              Month
+              <input
+                type="month"
+                className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2"
+                value={trainingHistoryMonth}
+                max={currentMonthKey()}
+                onChange={(event) =>
+                  setTrainingHistoryMonth(
+                    event.target.value || currentMonthKey(),
+                  )
+                }
+              />
+            </label>
+          </div>
+
+          {trainingHistoryLoading ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Loading training history...
+            </p>
+          ) : null}
+          {trainingHistoryError ? (
+            <p className="mt-4 text-sm text-rose-700">
+              {trainingHistoryError}
+            </p>
+          ) : null}
+          {!trainingHistoryLoading &&
+          !trainingHistoryError &&
+          trainingHistory ? (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">
+                  {formatMonthLabel(trainingHistory.month)}
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      New Trainings
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">
+                      {trainingHistory.total}
+                    </p>
+                  </div>
+                  {Object.entries(trainingHistory.departmentCounts)
+                    .sort(([left], [right]) => left.localeCompare(right))
+                    .map(([departmentName, count]) => (
+                      <div
+                        key={departmentName}
+                        className="rounded-xl border border-slate-100 bg-white px-3 py-2"
+                      >
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          {departmentName}
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">
+                          {count}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {trainingHistory.trainings.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="hidden grid-cols-[120px_minmax(150px,1.1fr)_minmax(180px,1.4fr)_120px_minmax(120px,1fr)_minmax(120px,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+                    <span>Start Date</span>
+                    <span>Colleague</span>
+                    <span>Process</span>
+                    <span>Department</span>
+                    <span>Training Buddy</span>
+                    <span>Assessor</span>
+                  </div>
+                  <div className="divide-y divide-slate-200">
+                    {trainingHistory.trainings.map((item) => (
+                      <div
+                        key={item.traineeProcessId}
+                        className="grid gap-2 px-3 py-3 text-sm lg:grid-cols-[120px_minmax(150px,1.1fr)_minmax(180px,1.4fr)_120px_minmax(120px,1fr)_minmax(120px,1fr)] lg:items-center lg:gap-3"
+                      >
+                        <span className="text-slate-600">
+                          {formatHistoryDate(item.trainingStartDate)}
+                        </span>
+                        <Link
+                          className="font-medium text-sky-700 hover:text-sky-900"
+                          href={`/trainees/${item.traineeId}`}
+                        >
+                          {item.traineeName}
+                        </Link>
+                        <span className="font-medium text-slate-900">
+                          {item.processName}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.departmentName}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.trainingBuddy || '-'}
+                        </span>
+                        <span className="text-slate-600">
+                          {item.trainingAssessor || 'Not Assigned'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                  No new training processes were recorded for this month.
+                </p>
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <input
