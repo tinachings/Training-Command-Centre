@@ -205,13 +205,7 @@ export async function POST(request: Request) {
       ? preAssessmentOutcomes
       : assessmentOutcomes;
 
-  if (
-    !validOutcomes.includes(
-      assessmentOutcome as
-        | (typeof preAssessmentOutcomes)[number]
-        | (typeof assessmentOutcomes)[number],
-    )
-  ) {
+  if (!(validOutcomes as readonly string[]).includes(assessmentOutcome)) {
     return NextResponse.json(
       { error: 'Assessment outcome is invalid.' },
       { status: 400 },
