@@ -180,7 +180,9 @@ export function buildTeamLeaderEmail(draft: AssessmentReportDraft) {
   const sections: string[] = [
     `Hi ${draft.teamLeader || 'Team Leader'},`,
     '',
-    `I've completed assessing ${draft.colleagueName} on ${draft.process}.`,
+    draft.assessmentType === 'Pre-Assessment'
+      ? `I've completed ${draft.colleagueName}'s pre-assessment for ${draft.process}.`
+      : `I've completed ${draft.colleagueName}'s assessment for ${draft.process}.`,
     '',
     competenceLine,
   ];
