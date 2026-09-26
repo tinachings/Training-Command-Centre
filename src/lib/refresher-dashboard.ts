@@ -223,9 +223,7 @@ export function countCompletedThisMonth(
   const monthKey = today.toISOString().slice(0, 7);
 
   return records.filter(
-    (record) =>
-      record.status === 'Completed' &&
-      record.completedDate?.slice(0, 7) === monthKey,
+    (record) => record.completedDate?.slice(0, 7) === monthKey,
   ).length;
 }
 
