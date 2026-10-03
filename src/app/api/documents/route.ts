@@ -32,7 +32,6 @@ export async function POST(request: Request) {
   const title = String(body.title ?? '').trim();
   const documentType = String(body.documentType ?? '').trim();
   const documentNumber = String(body.documentNumber ?? '').trim();
-  const process = String(body.process ?? '').trim();
   const requestType = String(body.requestType ?? '').trim();
   const requester = String(body.requester ?? '').trim();
   const dateRequested = cleanDate(body.dateRequested);
@@ -44,7 +43,6 @@ export async function POST(request: Request) {
 
   if (
     !title ||
-    !process ||
     !requester ||
     !dateRequested ||
     !requestDetails ||
@@ -63,7 +61,7 @@ export async function POST(request: Request) {
       title,
       documentType,
       documentNumber: documentNumber || null,
-      process,
+      process: title,
       requestType,
       requester,
       dateRequested,
