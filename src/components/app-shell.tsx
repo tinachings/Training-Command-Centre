@@ -12,6 +12,7 @@ const navItems = [
   ['Colleagues', '/colleagues'],
   ['Refresher Dashboard', '/refreshers'],
   ['Production Matrix', '/production-matrix'],
+  ['Documents', '/documents'],
   ['Team Leader Update', '/team-leader-update'],
   ['Reports', '/reports'],
   ['Settings', '/settings'],
