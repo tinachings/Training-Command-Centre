@@ -278,3 +278,47 @@ model Setting {
   value     String
   createdAt DateTime @default(now())
 }
+
+
+model DocumentRecord {
+  id                   Int                  @id @default(autoincrement())
+  title                String
+  documentType         String
+  documentNumber       String?
+  process              String
+  requestType          String
+  requester            String
+  dateRequested        DateTime
+  requestDetails       String
+  stage                String               @default("Request Received")
+  priority             String               @default("Normal")
+  targetCompletionDate DateTime?
+  currentRevision      String?
+  trialStartDate       DateTime?
+  trialEndDate         DateTime?
+  liveDate             DateTime?
+  changeDetails        String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  events               DocumentStageEvent[]
+
+  @@index([stage])
+  @@index([requestType])
+  @@index([dateRequested])
+  @@index([targetCompletionDate])
+  @@index([liveDate])
+}
+
+model DocumentStageEvent {
+  id         Int            @id @default(autoincrement())
+  documentId Int
+  document   DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  eventType  String
+  fromStage  String?
+  toStage    String?
+  note       String?
+  date       DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([documentId, date])
+}
