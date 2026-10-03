@@ -92,7 +92,6 @@ export default function DocumentsPage() {
     title: '',
     documentType: 'SOP',
     documentNumber: '',
-    process: '',
     requestType: 'Update Existing Document',
     requester: '',
     dateRequested: today(),
@@ -142,7 +141,6 @@ export default function DocumentsPage() {
     return documents.filter((item) =>
       (!needle ||
         item.title.toLowerCase().includes(needle) ||
-        item.process.toLowerCase().includes(needle) ||
         item.requester.toLowerCase().includes(needle) ||
         (item.documentNumber ?? '').toLowerCase().includes(needle)) &&
       (typeFilter === 'All' || item.documentType === typeFilter) &&
@@ -208,7 +206,6 @@ export default function DocumentsPage() {
         title: '',
         documentType: 'SOP',
         documentNumber: '',
-        process: '',
         requestType: 'Update Existing Document',
         requester: '',
         dateRequested: today(),
@@ -296,11 +293,10 @@ export default function DocumentsPage() {
             New documents can be created without a document number. Existing-document updates can carry the current number and revision.
           </p>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Document title"><input required className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+            <Field label="Document / Process Title"><input required className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
             <Field label="Document type"><select className="input" value={form.documentType} onChange={(e) => setForm({ ...form, documentType: e.target.value })}>{documentTypes.map((x) => <option key={x}>{x}</option>)}</select></Field>
             <Field label="Request type"><select className="input" value={form.requestType} onChange={(e) => setForm({ ...form, requestType: e.target.value })}>{requestTypes.map((x) => <option key={x}>{x}</option>)}</select></Field>
             <Field label="Document number (optional)"><input className="input" value={form.documentNumber} onChange={(e) => setForm({ ...form, documentNumber: e.target.value })} /></Field>
-            <Field label="Process"><input required className="input" value={form.process} onChange={(e) => setForm({ ...form, process: e.target.value })} /></Field>
             <Field label="Requester"><input required className="input" value={form.requester} onChange={(e) => setForm({ ...form, requester: e.target.value })} /></Field>
             <Field label="Date requested"><input required type="date" className="input" value={form.dateRequested} onChange={(e) => setForm({ ...form, dateRequested: e.target.value })} /></Field>
             <Field label="Priority"><select className="input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{priorities.map((x) => <option key={x}>{x}</option>)}</select></Field>
@@ -323,7 +319,7 @@ export default function DocumentsPage() {
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-4">
-          <input className="input" placeholder="Search title, process, requester or number" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input" placeholder="Search title, requester or document number" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className="input" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option>All</option>{documentTypes.map((x) => <option key={x}>{x}</option>)}</select>
           <select className="input" value={requestFilter} onChange={(e) => setRequestFilter(e.target.value)}><option>All</option>{requestTypes.map((x) => <option key={x}>{x}</option>)}</select>
           <select className="input" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}><option>All</option>{allStages.map((x) => <option key={x}>{x}</option>)}</select>
@@ -360,7 +356,6 @@ export default function DocumentsPage() {
                             <span className="text-[11px] font-medium text-slate-500">{item.priority}</span>
                           </div>
                           <p className="mt-3 font-semibold text-slate-900">{item.documentNumber ? `${item.documentNumber} · ` : ''}{item.title}</p>
-                          <p className="mt-1 text-sm text-slate-600">{item.process}</p>
                           <p className="mt-3 text-xs text-slate-500">Requested by {item.requester} · {formatDate(item.dateRequested)}</p>
                         </button>
                       ))}
@@ -380,7 +375,6 @@ export default function DocumentsPage() {
               <div>
                 <p className="text-sm text-slate-500">{selected.documentType} · {selected.requestType}</p>
                 <h3 className="mt-1 text-2xl font-semibold">{selected.title}</h3>
-                <p className="mt-1 text-slate-600">{selected.process}</p>
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-medium ${badge(selected.stage)}`}>{selected.stage}</span>
             </div>

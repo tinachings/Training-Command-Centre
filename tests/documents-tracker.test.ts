@@ -25,3 +25,14 @@ test('Tracker only uses agreed TA-owned document types', () => {
   const workflow = readFileSync('src/lib/document-workflow.ts', 'utf8');
   assert.match(workflow, /'SOP', 'WI', 'Care Point', 'Visual Aid'/);
 });
+
+
+test('Documents Tracker uses one Document / Process Title field', () => {
+  const page = readFileSync('src/app/documents/page.tsx', 'utf8');
+  const route = readFileSync('src/app/api/documents/route.ts', 'utf8');
+
+  assert.match(page, /Document \/ Process Title/);
+  assert.doesNotMatch(page, /label="Process"/);
+  assert.doesNotMatch(page, /form\.process/);
+  assert.match(route, /process: title/);
+});
